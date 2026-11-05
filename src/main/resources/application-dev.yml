@@ -19,6 +19,13 @@ app:
   cors:
     # Admin console dev server (Vite). Override with CORS_ALLOWED_ORIGINS (comma-separated).
     allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173,http://127.0.0.1:5173}
+  storage:
+    # Cloudflare R2. Keys are never committed: set R2_ACCESS_KEY / R2_SECRET_KEY in your environment.
+    endpoint: ${R2_ENDPOINT:https://cbbe7d03d00942a230b6065bdf3f731a.r2.cloudflarestorage.com}
+    bucket: ${R2_BUCKET:alliance-trading-test}
+    region: auto
+    access-key: ${R2_ACCESS_KEY}
+    secret-key: ${R2_SECRET_KEY}
   sms:
     # logging prints OTPs to the console; set SMS_PROVIDER=fast2sms to send real SMS
     provider: ${SMS_PROVIDER:logging}

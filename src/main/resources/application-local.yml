@@ -1,8 +1,6 @@
 spring:
   datasource:
     # NeonDB. The password is never committed: set DATABASE_PASSWORD in your environment.
-    # Override DATABASE_URL to use the docker-compose Postgres instead
-    # (jdbc:postgresql://localhost:5432/alliancetrading, postgres/postgres).
     url: ${DATABASE_URL:jdbc:postgresql://ep-mute-wind-b5goc44g.c-7.us-east-2.aws.neon.tech/neondb?sslmode=require&channelBinding=require}
     username: ${DATABASE_USERNAME:neondb_owner}
     password: ${DATABASE_PASSWORD:}

@@ -4,24 +4,41 @@ Record-keeping backend for AllianceTrading: users register via mobile OTP, submi
 
 ## Stack
 
-Java 21 · Spring Boot 3.5 · PostgreSQL 16 · Flyway · Spring Data JPA · Spring Security (stateless, JWT via Nimbus) · AWS SDK v2 S3 (Cloudflare R2 / MinIO) · Bucket4j · springdoc-openapi · Testcontainers · Maven
+Java 21 · Spring Boot 3.5 · PostgreSQL 16 (Neon) · Flyway · Spring Data JPA · Spring Security (stateless, JWT via Nimbus) · AWS SDK v2 S3 (Cloudflare R2) · Bucket4j · springdoc-openapi · Testcontainers · Maven
 
 ## Run locally
 
-```bash
-# 1. Start infrastructure (PostgreSQL + MinIO with the alliancetrading-docs bucket)
-docker compose up -d
+Infrastructure is external: **Neon** (Postgres) for the database and **Cloudflare R2** for file
+storage — no local services to start. Set `DATABASE_PASSWORD`, `R2_ACCESS_KEY` and
+`R2_SECRET_KEY` in your environment first (see the Environment variables table).
 
-# 2. Run the app (local profile: LoggingSmsSender prints OTPs, seed data created)
-#    Quote the -D argument in PowerShell. Local/dev point at NeonDB: set $env:DATABASE_PASSWORD first.
+```bash
+# 1. Run the app (local profile: LoggingSmsSender prints OTPs, seed data created)
+#    Quote the -D argument in PowerShell.
 .\mvnw.cmd spring-boot:run "-Dspring-boot.run.profiles=local"
 
-# 3. Explore the API
+# 2. Explore the API
 # Swagger UI: http://localhost:8080/swagger-ui/index.html
 # OpenAPI:    http://localhost:8080/v3/api-docs
 # Postman:    import postman/AllianceTrading.postman_collection.json (User + Admin folders;
 #             login requests save tokens, list/create requests save ids into collection variables)
 ```
+
+## Deploy (Docker / EC2)
+
+`docker-compose.yml` runs just the app against the external Neon + R2 infrastructure.
+On the server:
+
+```bash
+# 1. Put credentials in .env next to docker-compose.yml (compose reads it automatically;
+#    your secrets env file is already in KEY=value format, so a copy works)
+cp /path/to/alliancetrading-secrets.env .env
+
+# 2. Build and start (prod profile by default)
+docker compose up -d --build
+```
+
+The app listens on `:8080`. `.env` is gitignored — never commit it.
 
 ### Resetting the database
 
@@ -58,9 +75,7 @@ Seeding is skipped if the test users already exist. OTP codes are printed to the
 | `MASTER_KEY` | base64 32-byte AES key (envelope + field encryption) | dev value |
 | `MASTER_KEY_ID` | key version id for rotation | `k1` |
 | `HASH_PEPPER` | base64 pepper for uniqueness hashes (PAN, Aadhaar, account numbers) | dev value |
-| `S3_ENDPOINT` / `S3_ACCESS_KEY` / `S3_SECRET_KEY` | object storage | MinIO at :9000 |
-| `R2_ENDPOINT` / `R2_ACCESS_KEY` / `R2_SECRET_KEY` | Cloudflare R2 (staging/prod) | — |
-| `S3_BUCKET` | single bucket for all files (`app.storage.bucket`) | `alliancetrading-docs` (local profile: `alliance-trading-test`) |
+| `R2_ENDPOINT` / `R2_ACCESS_KEY` / `R2_SECRET_KEY` / `R2_BUCKET` | Cloudflare R2 object storage (all profiles) | — |
 | `FAST2SMS_API_KEY` | Fast2SMS API key (staging/prod, `app.sms.provider=fast2sms`) | — |
 | `FAST2SMS_ROUTE` | `dlt` (DLT sender + templates; production) or `otp` (Fast2SMS OTP route, OTPs only) | `dlt` |
 | `FAST2SMS_SENDER_ID` | DLT-approved sender ID (dlt route) | — |
@@ -71,7 +86,7 @@ Seeding is skipped if the test users already exist. OTP codes are printed to the
 
 ### File storage
 
-One bucket; docker-compose's MinIO init creates only `alliancetrading-docs`. Object keys (files are encrypted before upload; the original filename is never in the key; the document id keeps keys unique so re-uploads never overwrite):
+One bucket in Cloudflare R2 (create it in the Cloudflare dashboard, e.g. `alliance-trading-test`). Object keys (files are encrypted before upload; the original filename is never in the key; the document id keeps keys unique so re-uploads never overwrite):
 
 - Member documents: `<folder>/<memberUserId>/<doc_type>_<documentId>.<ext>`, folders `kyc/` (PAN_CARD, AADHAAR_MASKED_FRONT, AADHAAR_MASKED_BACK, BANK_PROOF), `payment-proof/`, `payout-proof/` (e.g. `kyc/<userId>/pan_card_<id>.jpg`). Admin-uploaded payout proofs go under the member.
 - Admin-only files (PNL_EVIDENCE, PAYMENT_QR): `admin/<adminId>/<doc_type>_<documentId>.<ext>`.

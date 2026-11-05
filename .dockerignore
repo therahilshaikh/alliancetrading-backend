@@ -1,0 +1,12 @@
+target/
+.git/
+.gitignore
+.cortex/
+.vscode/
+.idea/
+*.iml
+.env
+alliancetrading-secrets.env
+docker-compose.yml
+docs/
+postman/

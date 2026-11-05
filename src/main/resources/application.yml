@@ -63,11 +63,11 @@ app:
     # base64-encoded pepper for HMAC-SHA256 uniqueness hashes (PAN, etc.)
     hash-pepper: ${HASH_PEPPER:}
   storage:
-    endpoint: ${S3_ENDPOINT:http://localhost:9000}
-    region: ${S3_REGION:us-east-1}
-    access-key: ${S3_ACCESS_KEY:minioadmin}
-    secret-key: ${S3_SECRET_KEY:minioadmin}
-    bucket: ${S3_BUCKET:alliancetrading-docs}
+    endpoint: ${S3_ENDPOINT}
+    region: ${S3_REGION:auto}
+    access-key: ${S3_ACCESS_KEY}
+    secret-key: ${S3_SECRET_KEY}
+    bucket: ${S3_BUCKET}
   sms:
     # logging (prints SMS to the log, local dev) | fast2sms
     provider: logging
