@@ -1,0 +1,43 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/test
+    username: test
+    password: test
+
+app:
+  security:
+    jwt:
+      secret: dGVzdC1qd3Qtc2VjcmV0LXRoYXQtaXMtYXQtbGVhc3QtMzItYnl0ZXMtbG9uZw==
+      access-token-ttl: PT15M
+      admin-access-token-ttl: PT30M
+      refresh-token-ttl: P30D
+    otp:
+      pepper: dGVzdC1vdHAtcGVwcGVyLXRoYXQtaXMtYXQtbGVhc3Q=
+      ttl: PT5M
+      max-verify-attempts: 5
+      max-requests-per-mobile: 3
+      mobile-window: PT15M
+      max-requests-per-ip: 20
+      ip-window: PT1H
+    admin:
+      max-failed-logins: 5
+      lock-duration: PT15M
+      idle-timeout: PT30M
+  crypto:
+    master-key: AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=
+    key-id: k1
+    hash-pepper: dGVzdC1oYXNoLXBlcHBlci10aGF0LWlzLWF0LWxlYXN0
+  storage:
+    endpoint: http://localhost:9000
+    region: us-east-1
+    access-key: test
+    secret-key: test
+    bucket: test-docs
+  sms:
+    provider: logging
+  push:
+    provider: logging
+
+logging:
+  level:
+    in.ruhmans.alliancetrading: debug

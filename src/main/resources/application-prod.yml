@@ -1,0 +1,25 @@
+spring:
+  datasource:
+    # NeonDB pooled connection, e.g. jdbc:postgresql://<host>.neon.tech/neondb?sslmode=require
+    url: ${DATABASE_URL}
+    username: ${DATABASE_USERNAME}
+    password: ${DATABASE_PASSWORD}
+    hikari:
+      maximum-pool-size: 20
+
+app:
+  storage:
+    endpoint: ${R2_ENDPOINT}
+    region: auto
+    access-key: ${R2_ACCESS_KEY}
+    secret-key: ${R2_SECRET_KEY}
+  sms:
+    provider: fast2sms
+  push:
+    # No FCM sender is implemented yet; push notifications are only logged until one is added
+    provider: logging
+
+logging:
+  level:
+    root: warn
+    in.ruhmans.alliancetrading: info

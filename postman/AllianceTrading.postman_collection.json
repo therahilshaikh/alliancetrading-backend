@@ -1,0 +1,1947 @@
+﻿{
+    "info":  {
+                 "name":  "AllianceTrading API",
+                 "description":  "All backend APIs, split into User (mobile app) and Admin (console).\n\nQuick start:\n1. User \u003e Auth \u003e Request OTP, read the OTP from the server console, then Verify OTP (saves userToken).\n2. Admin \u003e Auth \u003e Login with email + password (saves adminToken).\n\nIDs returned by list/create calls are saved into collection variables (userId, paymentAccountId, investmentId, ...). Edit them in the collection Variables tab when needed.",
+                 "schema":  "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+             },
+    "variable":  [
+                     {
+                         "key":  "baseUrl",
+                         "value":  "http://localhost:8080"
+                     },
+                     {
+                         "key":  "mobile",
+                         "value":  "9123456780"
+                     },
+                     {
+                         "key":  "otp",
+                         "value":  "000000"
+                     },
+                     {
+                         "key":  "userToken",
+                         "value":  ""
+                     },
+                     {
+                         "key":  "userRefreshToken",
+                         "value":  ""
+                     },
+                     {
+                         "key":  "adminEmail",
+                         "value":  "admin@alliancetrading.local"
+                     },
+                     {
+                         "key":  "adminPassword",
+                         "value":  "AdminSecure1!"
+                     },
+                     {
+                         "key":  "adminToken",
+                         "value":  ""
+                     },
+                     {
+                         "key":  "userId",
+                         "value":  ""
+                     },
+                     {
+                         "key":  "adminUserId",
+                         "value":  ""
+                     },
+                     {
+                         "key":  "bankAccountId",
+                         "value":  ""
+                     },
+                     {
+                         "key":  "documentId",
+                         "value":  ""
+                     },
+                     {
+                         "key":  "paymentAccountId",
+                         "value":  ""
+                     },
+                     {
+                         "key":  "investmentId",
+                         "value":  ""
+                     },
+                     {
+                         "key":  "approverAdminId",
+                         "value":  ""
+                     },
+                     {
+                         "key":  "pnlBatchId",
+                         "value":  ""
+                     },
+                     {
+                         "key":  "quoteId",
+                         "value":  ""
+                     },
+                     {
+                         "key":  "withdrawalId",
+                         "value":  ""
+                     },
+                     {
+                         "key":  "ticketId",
+                         "value":  ""
+                     },
+                     {
+                         "key":  "settingId",
+                         "value":  ""
+                     }
+                 ],
+    "item":  [
+                 {
+                     "name":  "User",
+                     "description":  "Member (mobile app) APIs. Authenticated with {{userToken}}.",
+                     "auth":  {
+                                  "type":  "bearer",
+                                  "bearer":  [
+                                                 {
+                                                     "key":  "token",
+                                                     "value":  "{{userToken}}",
+                                                     "type":  "string"
+                                                 }
+                                             ]
+                              },
+                     "item":  [
+                                  {
+                                      "name":  "Auth",
+                                      "item":  [
+                                                   {
+                                                       "name":  "Request OTP",
+                                                       "request":  {
+                                                                       "description":  "Sends a 6-digit login OTP to the mobile number. Locally the OTP is printed in the server console. Public.",
+                                                                       "auth":  {
+                                                                                    "type":  "noauth"
+                                                                                },
+                                                                       "method":  "POST",
+                                                                       "header":  [
+                                                                                      {
+                                                                                          "key":  "Content-Type",
+                                                                                          "value":  "application/json"
+                                                                                      }
+                                                                                  ],
+                                                                       "url":  "{{baseUrl}}/api/v1/auth/otp/request",
+                                                                       "body":  {
+                                                                                    "mode":  "raw",
+                                                                                    "raw":  "{\n  \"mobile\": \"{{mobile}}\"\n}"
+                                                                                }
+                                                                   }
+                                                   },
+                                                   {
+                                                       "name":  "Verify OTP (login / register)",
+                                                       "event":  [
+                                                                     {
+                                                                         "listen":  "test",
+                                                                         "script":  {
+                                                                                        "exec":  [
+                                                                                                     "const r = pm.response.json();",
+                                                                                                     "pm.collectionVariables.set(\u0027userToken\u0027, r.accessToken);",
+                                                                                                     "pm.collectionVariables.set(\u0027userRefreshToken\u0027, r.refreshToken);"
+                                                                                                 ]
+                                                                                    }
+                                                                     }
+                                                                 ],
+                                                       "request":  {
+                                                                       "description":  "Verifies the OTP. Creates the user on first login (newUser=true) and returns access + refresh tokens. Saves userToken. Replaces any other active session for this user.",
+                                                                       "auth":  {
+                                                                                    "type":  "noauth"
+                                                                                },
+                                                                       "method":  "POST",
+                                                                       "header":  [
+                                                                                      {
+                                                                                          "key":  "Content-Type",
+                                                                                          "value":  "application/json"
+                                                                                      }
+                                                                                  ],
+                                                                       "url":  "{{baseUrl}}/api/v1/auth/otp/verify",
+                                                                       "body":  {
+                                                                                    "mode":  "raw",
+                                                                                    "raw":  "{\n  \"mobile\": \"{{mobile}}\",\n  \"otp\": \"{{otp}}\",\n  \"deviceId\": \"postman-device-1\",\n  \"deviceInfo\": \"Postman\"\n}"
+                                                                                }
+                                                                   }
+                                                   },
+                                                   {
+                                                       "name":  "Refresh token",
+                                                       "event":  [
+                                                                     {
+                                                                         "listen":  "test",
+                                                                         "script":  {
+                                                                                        "exec":  [
+                                                                                                     "const r = pm.response.json();",
+                                                                                                     "pm.collectionVariables.set(\u0027userToken\u0027, r.accessToken);",
+                                                                                                     "pm.collectionVariables.set(\u0027userRefreshToken\u0027, r.refreshToken);"
+                                                                                                 ]
+                                                                                    }
+                                                                     }
+                                                                 ],
+                                                       "request":  {
+                                                                       "description":  "Exchanges the refresh token for a new access + refresh token pair (rotation). Use when the 15-minute access token expires.",
+                                                                       "auth":  {
+                                                                                    "type":  "noauth"
+                                                                                },
+                                                                       "method":  "POST",
+                                                                       "header":  [
+                                                                                      {
+                                                                                          "key":  "Content-Type",
+                                                                                          "value":  "application/json"
+                                                                                      }
+                                                                                  ],
+                                                                       "url":  "{{baseUrl}}/api/v1/auth/refresh",
+                                                                       "body":  {
+                                                                                    "mode":  "raw",
+                                                                                    "raw":  "{\n  \"refreshToken\": \"{{userRefreshToken}}\"\n}"
+                                                                                }
+                                                                   }
+                                                   },
+                                                   {
+                                                       "name":  "Logout",
+                                                       "request":  {
+                                                                       "description":  "Revokes the current session.",
+                                                                       "method":  "POST",
+                                                                       "url":  "{{baseUrl}}/api/v1/auth/logout"
+                                                                   }
+                                                   },
+                                                   {
+                                                       "name":  "App version",
+                                                       "request":  {
+                                                                       "description":  "Minimum supported app version (force-update check). Public.",
+                                                                       "auth":  {
+                                                                                    "type":  "noauth"
+                                                                                },
+                                                                       "method":  "GET",
+                                                                       "url":  "{{baseUrl}}/api/v1/app/version"
+                                                                   }
+                                                   },
+                                                   {
+                                                       "name":  "Register push token",
+                                                       "request":  {
+                                                                       "description":  "Saves the device push notification token for this user.",
+                                                                       "method":  "PUT",
+                                                                       "header":  [
+                                                                                      {
+                                                                                          "key":  "Content-Type",
+                                                                                          "value":  "application/json"
+                                                                                      }
+                                                                                  ],
+                                                                       "url":  "{{baseUrl}}/api/v1/devices/push-token",
+                                                                       "body":  {
+                                                                                    "mode":  "raw",
+                                                                                    "raw":  "{\n  \"pushToken\": \"ExponentPushToken[xxxxxxxxxxxxxxxxxxxx]\"\n}"
+                                                                                }
+                                                                   }
+                                                   }
+                                               ]
+                                  },
+                                  {
+                                      "name":  "Onboarding (KYC \u0026 Bank)",
+                                      "item":  [
+                                                   {
+                                                       "name":  "Submit KYC",
+                                                       "request":  {
+                                                                       "description":  "Submits identity details: full name, DOB (18+), full PAN and full Aadhaar (Verhoeff-checked). Moves user to KYC_SUBMITTED. Allowed only from REGISTERED or after an admin rejection (no edits once submitted/approved). PAN and Aadhaar are stored encrypted.",
+                                                                       "method":  "POST",
+                                                                       "header":  [
+                                                                                      {
+                                                                                          "key":  "Content-Type",
+                                                                                          "value":  "application/json"
+                                                                                      }
+                                                                                  ],
+                                                                       "url":  "{{baseUrl}}/api/v1/kyc",
+                                                                       "body":  {
+                                                                                    "mode":  "raw",
+                                                                                    "raw":  "{\n  \"fullName\": \"Ravi Kumar\",\n  \"dob\": \"1995-04-12\",\n  \"pan\": \"ABCDE1234F\",\n  \"aadhaar\": \"234567890124\"\n}"
+                                                                                }
+                                                                   }
+                                                   },
+                                                   {
+                                                       "name":  "Get my KYC",
+                                                       "request":  {
+                                                                       "description":  "Returns the user\u0027s KYC status and masked PAN/Aadhaar.",
+                                                                       "method":  "GET",
+                                                                       "url":  "{{baseUrl}}/api/v1/kyc"
+                                                                   }
+                                                   },
+                                                   {
+                                                       "name":  "Add bank account",
+                                                       "event":  [
+                                                                     {
+                                                                         "listen":  "test",
+                                                                         "script":  {
+                                                                                        "exec":  [
+                                                                                                     "if (pm.response.code === 200) pm.collectionVariables.set(\u0027bankAccountId\u0027, pm.response.json().id);"
+                                                                                                 ]
+                                                                                    }
+                                                                     }
+                                                                 ],
+                                                       "request":  {
+                                                                       "description":  "Adds the payout bank account (PENDING_VERIFICATION). Also used to CHANGE bank/UPI details: the current verified account keeps receiving payouts until an admin verifies the new one, and a change to a verified account starts a 48h cooling-off during which withdrawals are blocked. accountType: SAVINGS | CURRENT | SALARY. proofDocumentId is optional.",
+                                                                       "method":  "POST",
+                                                                       "header":  [
+                                                                                      {
+                                                                                          "key":  "Content-Type",
+                                                                                          "value":  "application/json"
+                                                                                      }
+                                                                                  ],
+                                                                       "url":  "{{baseUrl}}/api/v1/bank-accounts",
+                                                                       "body":  {
+                                                                                    "mode":  "raw",
+                                                                                    "raw":  "{\n  \"holderName\": \"Ravi Kumar\",\n  \"accountNumber\": \"123456789012\",\n  \"ifsc\": \"HDFC0001234\",\n  \"accountType\": \"SAVINGS\",\n  \"vpa\": \"ravi@okhdfc\"\n}"
+                                                                                }
+                                                                   }
+                                                   },
+                                                   {
+                                                       "name":  "List my bank accounts",
+                                                       "request":  {
+                                                                       "description":  "Returns the user\u0027s bank accounts with masked account numbers.",
+                                                                       "method":  "GET",
+                                                                        "url":  "{{baseUrl}}/api/v1/bank-accounts"
+                                                                    }
+                                                    }
+                                                ]
+                                  },
+                                  {
+                                      "name":  "Profile \u0026 Dashboard",
+                                      "item":  [
+                                                   {
+                                                       "name":  "My profile",
+                                                       "request":  {
+                                                                       "description":  "Mobile, account status, KYC summary and current bank account.",
+                                                                       "method":  "GET",
+                                                                       "url":  "{{baseUrl}}/api/v1/me/profile"
+                                                                   }
+                                                   },
+                                                   {
+                                                       "name":  "My summary (balances)",
+                                                       "request":  {
+                                                                       "description":  "Home screen data: principal, profit, held balance and live investment.",
+                                                                       "method":  "GET",
+                                                                       "url":  "{{baseUrl}}/api/v1/me/summary"
+                                                                   }
+                                                   },
+                                                   {
+                                                       "name":  "My ledger",
+                                                       "request":  {
+                                                                       "description":  "Transaction history, newest first. Pass the returned nextCursor as cursor for the next page.",
+                                                                       "method":  "GET",
+                                                                       "url":  {
+                                                                                   "raw":  "{{baseUrl}}/api/v1/me/ledger?limit=20",
+                                                                                   "host":  [
+                                                                                                "{{baseUrl}}"
+                                                                                            ],
+                                                                                   "path":  [
+                                                                                                "api",
+                                                                                                "v1",
+                                                                                                "me",
+                                                                                                "ledger"
+                                                                                            ],
+                                                                                   "query":  [
+                                                                                                 {
+                                                                                                     "key":  "limit",
+                                                                                                     "value":  "20"
+                                                                                                 },
+                                                                                                 {
+                                                                                                     "key":  "cursor",
+                                                                                                     "value":  "",
+                                                                                                     "disabled":  true
+                                                                                                 }
+                                                                                             ]
+                                                                               }
+                                                                   }
+                                                   }
+                                               ]
+                                  },
+                                  {
+                                      "name":  "Payment \u0026 Investment",
+                                      "item":  [
+                                                   {
+                                                       "name":  "Get my payment details",
+                                                       "request":  {
+                                                                       "description":  "The UPI ID, payee and amount the admin assigned to this user. Available after account approval.",
+                                                                       "method":  "GET",
+                                                                       "url":  "{{baseUrl}}/api/v1/payment/current"
+                                                                   }
+                                                   },
+                                                   {
+                                                       "name":  "Get my payment QR (PNG)",
+                                                       "request":  {
+                                                                       "description":  "UPI QR code image for the assigned account and amount.",
+                                                                       "method":  "GET",
+                                                                       "url":  "{{baseUrl}}/api/v1/payment/qr"
+                                                                   }
+                                                   },
+                                                   {
+                                                       "name":  "Upload payment proof",
+                                                       "event":  [
+                                                                     {
+                                                                         "listen":  "test",
+                                                                         "script":  {
+                                                                                        "exec":  [
+                                                                                                     "if (pm.response.code === 200) pm.collectionVariables.set(\u0027documentId\u0027, pm.response.json().id);"
+                                                                                                 ]
+                                                                                    }
+                                                                     }
+                                                                 ],
+                                                       "request":  {
+                                                                       "description":  "Uploads a screenshot of the UPI payment (JPEG/PNG/PDF, max 5 MB). Choose the file in the Body tab. Saves documentId. Needs MinIO/R2 storage running.",
+                                                                       "method":  "POST",
+                                                                       "url":  "{{baseUrl}}/api/v1/files",
+                                                                       "body":  {
+                                                                                    "mode":  "formdata",
+                                                                                    "formdata":  [
+                                                                                                     {
+                                                                                                         "key":  "file",
+                                                                                                         "type":  "file",
+                                                                                                         "src":  [
+
+                                                                                                                 ]
+                                                                                                     },
+                                                                                                     {
+                                                                                                         "key":  "docType",
+                                                                                                         "value":  "PAYMENT_PROOF",
+                                                                                                         "type":  "text"
+                                                                                                     }
+                                                                                                 ]
+                                                                                }
+                                                                   }
+                                                   },
+                                                   {
+                                                       "name":  "Get my uploaded file",
+                                                       "request":  {
+                                                                       "description":  "Downloads a document the user uploaded.",
+                                                                       "method":  "GET",
+                                                                       "url":  "{{baseUrl}}/api/v1/files/{{documentId}}/content"
+                                                                   }
+                                                   },
+                                                   {
+                                                       "name":  "Submit investment",
+                                                       "event":  [
+                                                                     {
+                                                                         "listen":  "test",
+                                                                         "script":  {
+                                                                                        "exec":  [
+                                                                                                     "if (pm.response.code === 200) pm.collectionVariables.set(\u0027investmentId\u0027, pm.response.json().id);"
+                                                                                                 ]
+                                                                                    }
+                                                                     }
+                                                                 ],
+                                                       "request":  {
+                                                                       "description":  "Declares that the assigned amount was paid, with the payment proof. Creates a PENDING_VERIFICATION investment. Idempotency-Key makes retries safe.",
+                                                                       "method":  "POST",
+                                                                       "header":  [
+                                                                                      {
+                                                                                          "key":  "Content-Type",
+                                                                                          "value":  "application/json"
+                                                                                      },
+                                                                                      {
+                                                                                          "key":  "Idempotency-Key",
+                                                                                          "value":  "{{$guid}}"
+                                                                                      }
+                                                                                  ],
+                                                                       "url":  "{{baseUrl}}/api/v1/investments",
+                                                                       "body":  {
+                                                                                    "mode":  "raw",
+                                                                                    "raw":  "{\n  \"proofDocumentId\": \"{{documentId}}\"\n}"
+                                                                                }
+                                                                   }
+                                                   },
+                                                   {
+                                                       "name":  "List my investments",
+                                                       "request":  {
+                                                                       "description":  "All of the user\u0027s investments and their status.",
+                                                                       "method":  "GET",
+                                                                       "url":  "{{baseUrl}}/api/v1/investments"
+                                                                   }
+                                                   }
+                                               ]
+                                  },
+                                  {
+                                      "name":  "Withdrawals",
+                                      "item":  [
+                                                   {
+                                                       "name":  "Get withdrawal quote",
+                                                       "event":  [
+                                                                     {
+                                                                         "listen":  "test",
+                                                                         "script":  {
+                                                                                        "exec":  [
+                                                                                                     "if (pm.response.code === 200) pm.collectionVariables.set(\u0027quoteId\u0027, pm.response.json().quoteId || pm.response.json().id);"
+                                                                                                 ]
+                                                                                    }
+                                                                     }
+                                                                 ],
+                                                       "request":  {
+                                                                       "description":  "Calculates fee and net amount for a withdrawal. withdrawalType: PROFIT | PRINCIPAL (principal = full exit). The quote expires after a short time.",
+                                                                       "method":  "POST",
+                                                                       "header":  [
+                                                                                      {
+                                                                                          "key":  "Content-Type",
+                                                                                          "value":  "application/json"
+                                                                                      }
+                                                                                  ],
+                                                                       "url":  "{{baseUrl}}/api/v1/withdrawals/quote",
+                                                                       "body":  {
+                                                                                    "mode":  "raw",
+                                                                                    "raw":  "{\n  \"amount\": 1000,\n  \"withdrawalType\": \"PROFIT\"\n}"
+                                                                                }
+                                                                   }
+                                                   },
+                                                   {
+                                                       "name":  "Request withdrawal",
+                                                       "event":  [
+                                                                     {
+                                                                         "listen":  "test",
+                                                                         "script":  {
+                                                                                        "exec":  [
+                                                                                                     "if (pm.response.code === 200) pm.collectionVariables.set(\u0027withdrawalId\u0027, pm.response.json().id);"
+                                                                                                 ]
+                                                                                    }
+                                                                     }
+                                                                 ],
+                                                       "request":  {
+                                                                       "description":  "Creates a withdrawal from a quote and holds the amount. Only one open withdrawal per user.",
+                                                                       "method":  "POST",
+                                                                       "header":  [
+                                                                                      {
+                                                                                          "key":  "Content-Type",
+                                                                                          "value":  "application/json"
+                                                                                      },
+                                                                                      {
+                                                                                          "key":  "Idempotency-Key",
+                                                                                          "value":  "{{$guid}}"
+                                                                                      }
+                                                                                  ],
+                                                                       "url":  "{{baseUrl}}/api/v1/withdrawals",
+                                                                       "body":  {
+                                                                                    "mode":  "raw",
+                                                                                    "raw":  "{\n  \"quoteId\": \"{{quoteId}}\"\n}"
+                                                                                }
+                                                                   }
+                                                   },
+                                                   {
+                                                       "name":  "List my withdrawals",
+                                                       "request":  {
+                                                                       "description":  "All of the user\u0027s withdrawal requests.",
+                                                                       "method":  "GET",
+                                                                       "url":  "{{baseUrl}}/api/v1/withdrawals"
+                                                                   }
+                                                   },
+                                                   {
+                                                       "name":  "Cancel withdrawal",
+                                                       "request":  {
+                                                                       "description":  "Cancels a withdrawal that is still REQUESTED and releases the held amount.",
+                                                                       "method":  "POST",
+                                                                       "url":  "{{baseUrl}}/api/v1/withdrawals/{{withdrawalId}}/cancel"
+                                                                   }
+                                                   }
+                                               ]
+                                  },
+                                  {
+                                      "name":  "Support",
+                                      "item":  [
+                                                   {
+                                                       "name":  "Open ticket",
+                                                       "event":  [
+                                                                     {
+                                                                         "listen":  "test",
+                                                                         "script":  {
+                                                                                        "exec":  [
+                                                                                                     "const r = pm.response.json();",
+                                                                                                     "if (pm.response.code === 200) pm.collectionVariables.set(\u0027ticketId\u0027, (r.ticket \u0026\u0026 r.ticket.id) || r.id);"
+                                                                                                 ]
+                                                                                    }
+                                                                     }
+                                                                 ],
+                                                       "request":  {
+                                                                       "description":  "Opens a support ticket with a first message.",
+                                                                       "method":  "POST",
+                                                                       "header":  [
+                                                                                      {
+                                                                                          "key":  "Content-Type",
+                                                                                          "value":  "application/json"
+                                                                                      }
+                                                                                  ],
+                                                                       "url":  "{{baseUrl}}/api/v1/support/tickets",
+                                                                       "body":  {
+                                                                                    "mode":  "raw",
+                                                                                    "raw":  "{\n  \"subject\": \"Payment not reflected\",\n  \"message\": \"I paid via UPI an hour ago but the investment is still pending.\"\n}"
+                                                                                }
+                                                                   }
+                                                   },
+                                                   {
+                                                       "name":  "List my tickets",
+                                                       "request":  {
+                                                                       "description":  "User\u0027s tickets, most recent activity first.",
+                                                                       "method":  "GET",
+                                                                       "url":  "{{baseUrl}}/api/v1/support/tickets"
+                                                                   }
+                                                   },
+                                                   {
+                                                       "name":  "Get ticket thread",
+                                                       "request":  {
+                                                                       "description":  "Ticket with all messages.",
+                                                                       "method":  "GET",
+                                                                       "url":  "{{baseUrl}}/api/v1/support/tickets/{{ticketId}}"
+                                                                   }
+                                                   },
+                                                   {
+                                                       "name":  "Reply to ticket",
+                                                       "request":  {
+                                                                       "description":  "Adds a user message to the ticket (reopens it if resolved).",
+                                                                       "method":  "POST",
+                                                                       "header":  [
+                                                                                      {
+                                                                                          "key":  "Content-Type",
+                                                                                          "value":  "application/json"
+                                                                                      }
+                                                                                  ],
+                                                                       "url":  "{{baseUrl}}/api/v1/support/tickets/{{ticketId}}/messages",
+                                                                       "body":  {
+                                                                                    "mode":  "raw",
+                                                                                    "raw":  "{\n  \"message\": \"Attaching more details here.\"\n}"
+                                                                                }
+                                                                   }
+                                                   }
+                                               ]
+                                  }
+                              ]
+                 },
+                 {
+                     "name":  "Admin",
+                     "description":  "Admin console APIs. Authenticated with {{adminToken}} (ADMIN or SUPER_ADMIN).",
+                     "auth":  {
+                                  "type":  "bearer",
+                                  "bearer":  [
+                                                 {
+                                                     "key":  "token",
+                                                     "value":  "{{adminToken}}",
+                                                     "type":  "string"
+                                                 }
+                                             ]
+                              },
+                     "item":  [
+                                  {
+                                      "name":  "Auth",
+                                      "item":  [
+                                                   {
+                                                       "name":  "Login (email + password)",
+                                                       "event":  [
+                                                                     {
+                                                                         "listen":  "test",
+                                                                         "script":  {
+                                                                                        "exec":  [
+                                                                                                     "if (pm.response.code === 200) {",
+                                                                                                     "  const r = pm.response.json();",
+                                                                                                     "  pm.collectionVariables.set(\u0027adminToken\u0027, r.accessToken);",
+                                                                                                     "}"
+                                                                                                 ]
+                                                                                    }
+                                                                     }
+                                                                 ],
+                                                       "request":  {
+                                                                       "description":  "Admin login with email and password. Returns access + refresh tokens plus an admin object {id, email, displayName, role}, and saves adminToken. 5 wrong passwords lock the account for 15 minutes. Public.",
+                                                                       "auth":  {
+                                                                                    "type":  "noauth"
+                                                                                },
+                                                                       "method":  "POST",
+                                                                       "header":  [
+                                                                                      {
+                                                                                          "key":  "Content-Type",
+                                                                                          "value":  "application/json"
+                                                                                      }
+                                                                                  ],
+                                                                       "url":  "{{baseUrl}}/api/v1/admin/auth/login",
+                                                                       "body":  {
+                                                                                    "mode":  "raw",
+                                                                                     "raw":  "{\n  \"email\": \"{{adminEmail}}\",\n  \"password\": \"{{adminPassword}}\"\n}"
+                                                                                 }
+                                                                    }
+                                                    },
+                                                    {
+                                                        "name":  "Change my password",
+                                                        "event":  [
+                                                                      {
+                                                                          "listen":  "test",
+                                                                          "script":  {
+                                                                                         "exec":  [
+                                                                                                      "if (pm.response.code === 200) {",
+                                                                                                      "  const r = pm.response.json();",
+                                                                                                      "  pm.collectionVariables.set(\u0027adminToken\u0027, r.accessToken);",
+                                                                                                      "}"
+                                                                                                  ]
+                                                                                     }
+                                                                      }
+                                                                  ],
+                                                        "request":  {
+                                                                        "description":  "Any signed-in admin. newPassword 10-100 chars and different from the current one. Wrong current password returns 400 INVALID_CREDENTIALS and counts towards the login lockout. Revokes all sessions of this admin on every device and returns fresh tokens (saves adminToken). Audit ADMIN_PASSWORD_CHANGED.",
+                                                                        "method":  "POST",
+                                                                        "header":  [
+                                                                                       {
+                                                                                           "key":  "Content-Type",
+                                                                                           "value":  "application/json"
+                                                                                       }
+                                                                                   ],
+                                                                        "url":  "{{baseUrl}}/api/v1/admin/auth/change-password",
+                                                                        "body":  {
+                                                                                     "mode":  "raw",
+                                                                                     "raw":  "{\n  \"currentPassword\": \"AdminSecure1!\",\n  \"newPassword\": \"AdminSecure2!\"\n}"
+                                                                                 }
+                                                                    }
+                                                    },
+                                                   {
+                                                       "name":  "Logout",
+                                                       "request":  {
+                                                                       "description":  "Revokes the admin session.",
+                                                                       "method":  "POST",
+                                                                       "url":  "{{baseUrl}}/api/v1/auth/logout"
+                                                                   }
+                                                   }
+                                               ]
+                                  },
+                                  {
+                                      "name":  "Dashboard \u0026 Audit",
+                                      "item":  [
+                                                   {
+                                                       "name":  "Dashboard summary",
+                                                       "request":  {
+                                                                       "description":  "stats (activeInvestors, fundsInvested, profitCredited, pendingActions), actionCenter counts (kycPending, investmentPending, withdrawalOpen, supportOpen, bankPending, pnlAwaitingMyApproval, total) and todayDistribution (sessionDate, total, recipients, eligible). IST day/month boundaries; pnlAwaitingMyApproval is per signed-in admin.",
+                                                                       "method":  "GET",
+                                                                       "url":  "{{baseUrl}}/api/v1/admin/dashboard"
+                                                                   }
+                                                   },
+                                                   {
+                                                       "name":  "Audit log",
+                                                       "request":  {
+                                                                       "description":  "Recent audit entries, optionally filtered by entity.",
+                                                                       "method":  "GET",
+                                                                       "url":  {
+                                                                                   "raw":  "{{baseUrl}}/api/v1/admin/audit-log?limit=50",
+                                                                                   "host":  [
+                                                                                                "{{baseUrl}}"
+                                                                                            ],
+                                                                                   "path":  [
+                                                                                                "api",
+                                                                                                "v1",
+                                                                                                "admin",
+                                                                                                "audit-log"
+                                                                                            ],
+                                                                                   "query":  [
+                                                                                                 {
+                                                                                                     "key":  "limit",
+                                                                                                     "value":  "50"
+                                                                                                 },
+                                                                                                 {
+                                                                                                     "key":  "entityType",
+                                                                                                     "value":  "USER",
+                                                                                                     "disabled":  true
+                                                                                                 },
+                                                                                                 {
+                                                                                                     "key":  "entityId",
+                                                                                                     "value":  "{{userId}}",
+                                                                                                     "disabled":  true
+                                                                                                 }
+                                                                                             ]
+                                                                               }
+                                                                   }
+                                                   }
+                                               ]
+                                  },
+                                  {
+                                      "name":  "Members",
+                                      "item":  [
+                                                   {
+                                                       "name":  "Search members",
+                                                       "event":  [
+                                                                     {
+                                                                         "listen":  "test",
+                                                                         "script":  {
+                                                                                        "exec":  [
+                                                                                                     "const c = pm.response.json().content || [];",
+                                                                                                     "if (c.length) pm.collectionVariables.set(\u0027userId\u0027, c[0].userId || c[0].id);"
+                                                                                                 ]
+                                                                                    }
+                                                                     }
+                                                                 ],
+                                                       "request":  {
+                                                                       "description":  "Paged member list with KYC, bank, balance and live investment. search matches mobile or name. status: REGISTERED | KYC_SUBMITTED | APPROVED | REJECTED | SUSPENDED.",
+                                                                       "method":  "GET",
+                                                                       "url":  {
+                                                                                   "raw":  "{{baseUrl}}/api/v1/admin/users?page=0\u0026size=20",
+                                                                                   "host":  [
+                                                                                                "{{baseUrl}}"
+                                                                                            ],
+                                                                                   "path":  [
+                                                                                                "api",
+                                                                                                "v1",
+                                                                                                "admin",
+                                                                                                "users"
+                                                                                            ],
+                                                                                   "query":  [
+                                                                                                 {
+                                                                                                     "key":  "page",
+                                                                                                     "value":  "0"
+                                                                                                 },
+                                                                                                 {
+                                                                                                     "key":  "size",
+                                                                                                     "value":  "20"
+                                                                                                 },
+                                                                                                 {
+                                                                                                     "key":  "search",
+                                                                                                     "value":  "9123",
+                                                                                                     "disabled":  true
+                                                                                                 },
+                                                                                                 {
+                                                                                                     "key":  "status",
+                                                                                                     "value":  "APPROVED",
+                                                                                                     "disabled":  true
+                                                                                                 }
+                                                                                             ]
+                                                                               }
+                                                                   }
+                                                   },
+                                                   {
+                                                       "name":  "Member details",
+                                                       "request":  {
+                                                                       "description":  "Full member record: KYC, bank accounts, investments, payment assignment, balances.",
+                                                                       "method":  "GET",
+                                                                       "url":  "{{baseUrl}}/api/v1/admin/users/{{userId}}"
+                                                                   }
+                                                   },
+                                                   {
+                                                       "name":  "Member ledger",
+                                                       "request":  {
+                                                                       "description":  "Member\u0027s transaction history (cursor paging).",
+                                                                       "method":  "GET",
+                                                                       "url":  {
+                                                                                   "raw":  "{{baseUrl}}/api/v1/admin/users/{{userId}}/ledger?limit=20",
+                                                                                   "host":  [
+                                                                                                "{{baseUrl}}"
+                                                                                            ],
+                                                                                   "path":  [
+                                                                                                "api",
+                                                                                                "v1",
+                                                                                                "admin",
+                                                                                                "users",
+                                                                                                "{{userId}}",
+                                                                                                "ledger"
+                                                                                            ],
+                                                                                   "query":  [
+                                                                                                 {
+                                                                                                     "key":  "limit",
+                                                                                                     "value":  "20"
+                                                                                                 },
+                                                                                                 {
+                                                                                                     "key":  "cursor",
+                                                                                                     "value":  "",
+                                                                                                     "disabled":  true
+                                                                                                 }
+                                                                                             ]
+                                                                               }
+                                                                   }
+                                                   },
+                                                   {
+                                                       "name":  "Suspend member",
+                                                       "request":  {
+                                                                       "description":  "Blocks login and revokes sessions; the previous status is restored on reactivation.",
+                                                                       "method":  "POST",
+                                                                       "header":  [
+                                                                                      {
+                                                                                          "key":  "Content-Type",
+                                                                                          "value":  "application/json"
+                                                                                      }
+                                                                                  ],
+                                                                       "url":  "{{baseUrl}}/api/v1/admin/users/{{userId}}/suspend",
+                                                                       "body":  {
+                                                                                    "mode":  "raw",
+                                                                                    "raw":  "{\n  \"reason\": \"Suspicious activity under review\"\n}"
+                                                                                }
+                                                                   }
+                                                   },
+                                                   {
+                                                       "name":  "Reactivate member",
+                                                       "request":  {
+                                                                       "description":  "Lifts a suspension.",
+                                                                       "method":  "POST",
+                                                                       "url":  "{{baseUrl}}/api/v1/admin/users/{{userId}}/reactivate"
+                                                                   }
+                                                   }
+                                               ]
+                                  },
+                                  {
+                                      "name":  "KYC Approvals",
+                                      "item":  [
+                                                   {
+                                                       "name":  "KYC queue",
+                                                       "event":  [
+                                                                     {
+                                                                         "listen":  "test",
+                                                                         "script":  {
+                                                                                        "exec":  [
+                                                                                                     "const c = pm.response.json().content || [];",
+                                                                                                     "if (c.length) pm.collectionVariables.set(\u0027userId\u0027, c[0].userId);"
+                                                                                                 ]
+                                                                                    }
+                                                                     }
+                                                                 ],
+                                                       "request":  {
+                                                                       "description":  "Members waiting for approval with masked PAN/Aadhaar, bank account and payment assignment. Saves the first userId.",
+                                                                       "method":  "GET",
+                                                                       "url":  {
+                                                                                   "raw":  "{{baseUrl}}/api/v1/admin/kyc?status=KYC_SUBMITTED\u0026page=0\u0026size=20",
+                                                                                   "host":  [
+                                                                                                "{{baseUrl}}"
+                                                                                            ],
+                                                                                   "path":  [
+                                                                                                "api",
+                                                                                                "v1",
+                                                                                                "admin",
+                                                                                                "kyc"
+                                                                                            ],
+                                                                                   "query":  [
+                                                                                                 {
+                                                                                                     "key":  "status",
+                                                                                                     "value":  "KYC_SUBMITTED"
+                                                                                                 },
+                                                                                                 {
+                                                                                                     "key":  "page",
+                                                                                                     "value":  "0"
+                                                                                                 },
+                                                                                                 {
+                                                                                                     "key":  "size",
+                                                                                                     "value":  "20"
+                                                                                                 }
+                                                                                             ]
+                                                                               }
+                                                                   }
+                                                   },
+                                                   {
+                                                       "name":  "Reveal full PAN",
+                                                       "request":  {
+                                                                       "description":  "Shows the full PAN for manual verification. Audited as a PII view.",
+                                                                       "method":  "GET",
+                                                                       "url":  "{{baseUrl}}/api/v1/admin/kyc/{{userId}}/identity/PAN"
+                                                                   }
+                                                   },
+                                                   {
+                                                       "name":  "Reveal full Aadhaar",
+                                                       "request":  {
+                                                                       "description":  "Shows the full Aadhaar for manual verification. Audited as a PII view.",
+                                                                       "method":  "GET",
+                                                                       "url":  "{{baseUrl}}/api/v1/admin/kyc/{{userId}}/identity/AADHAAR"
+                                                                   }
+                                                   },
+                                                   {
+                                                       "name":  "Approve account (saved payment account)",
+                                                       "request":  {
+                                                                       "description":  "Approves KYC, verifies the pending bank account and assigns the UPI account + amount the member must pay. Run Payment Accounts \u003e List first to fill paymentAccountId.",
+                                                                       "method":  "POST",
+                                                                       "header":  [
+                                                                                      {
+                                                                                          "key":  "Content-Type",
+                                                                                          "value":  "application/json"
+                                                                                      }
+                                                                                  ],
+                                                                       "url":  "{{baseUrl}}/api/v1/admin/users/{{userId}}/kyc/approve",
+                                                                       "body":  {
+                                                                                    "mode":  "raw",
+                                                                                    "raw":  "{\n  \"payment\": {\n    \"paymentAccountId\": \"{{paymentAccountId}}\",\n    \"amount\": 50000\n  }\n}"
+                                                                                }
+                                                                   }
+                                                   },
+                                                   {
+                                                       "name":  "Approve account (new UPI details)",
+                                                       "request":  {
+                                                                       "description":  "Same as approve, but enters new UPI details instead of picking a saved account. saveToList=true also saves it to the payment account list.",
+                                                                       "method":  "POST",
+                                                                       "header":  [
+                                                                                      {
+                                                                                          "key":  "Content-Type",
+                                                                                          "value":  "application/json"
+                                                                                      }
+                                                                                  ],
+                                                                       "url":  "{{baseUrl}}/api/v1/admin/users/{{userId}}/kyc/approve",
+                                                                       "body":  {
+                                                                                    "mode":  "raw",
+                                                                                    "raw":  "{\n  \"payment\": {\n    \"newAccount\": {\n      \"label\": \"Collections UPI 2\",\n      \"vpa\": \"collections2@okicici\",\n      \"payeeName\": \"AllianceTrading\"\n    },\n    \"saveToList\": true,\n    \"amount\": 50000\n  }\n}"
+                                                                                }
+                                                                   }
+                                                   },
+                                                   {
+                                                       "name":  "Reject account",
+                                                       "request":  {
+                                                                       "description":  "Rejects the KYC with a reason shown to the member.",
+                                                                       "method":  "POST",
+                                                                       "header":  [
+                                                                                      {
+                                                                                          "key":  "Content-Type",
+                                                                                          "value":  "application/json"
+                                                                                      }
+                                                                                  ],
+                                                                       "url":  "{{baseUrl}}/api/v1/admin/users/{{userId}}/kyc/reject",
+                                                                       "body":  {
+                                                                                    "mode":  "raw",
+                                                                                    "raw":  "{\n  \"reason\": \"PAN name does not match\"\n}"
+                                                                                }
+                                                                   }
+                                                   }
+                                               ]
+                                  },
+                                  {
+                                      "name":  "Bank Accounts",
+                                      "item":  [
+                                                   {
+                                                       "name":  "List bank accounts by status",
+                                                       "event":  [
+                                                                     {
+                                                                         "listen":  "test",
+                                                                         "script":  {
+                                                                                        "exec":  [
+                                                                                                     "const c = pm.response.json();",
+                                                                                                     "if (c.items \u0026\u0026 c.items.length) pm.collectionVariables.set(\u0027bankAccountId\u0027, c.items[0].id);"
+                                                                                                 ]
+                                                                                    }
+                                                                     }
+                                                                 ],
+                                                       "request":  {
+                                                                       "description":  "status: PENDING_VERIFICATION (default) | VERIFIED | REJECTED | REPLACED. Paged, newest first: PageResponse { items, page, size, totalItems, totalPages }; page is 0-based, size 1..100 (default 20). Saves the first id.",
+                                                                       "method":  "GET",
+                                                                       "url":  {
+                                                                                   "raw":  "{{baseUrl}}/api/v1/admin/bank-accounts?status=PENDING_VERIFICATION\u0026page=0\u0026size=20",
+                                                                                   "host":  [
+                                                                                                "{{baseUrl}}"
+                                                                                            ],
+                                                                                   "path":  [
+                                                                                                "api",
+                                                                                                "v1",
+                                                                                                "admin",
+                                                                                                "bank-accounts"
+                                                                                            ],
+                                                                                   "query":  [
+                                                                                                 {
+                                                                                                     "key":  "status",
+                                                                                                     "value":  "PENDING_VERIFICATION"
+                                                                                                 },
+                                                                                                 {
+                                                                                                     "key":  "page",
+                                                                                                     "value":  "0"
+                                                                                                 },
+                                                                                                 {
+                                                                                                     "key":  "size",
+                                                                                                     "value":  "20"
+                                                                                                 }
+                                                                                             ]
+                                                                               }
+                                                                   }
+                                                   },
+                                                   {
+                                                       "name":  "Get bank account",
+                                                       "request":  {
+                                                                       "description":  "One bank account by id (AdminBankAccountResponse), for side panels and deep links.",
+                                                                       "method":  "GET",
+                                                                       "url":  "{{baseUrl}}/api/v1/admin/bank-accounts/{{bankAccountId}}"
+                                                                   }
+                                                   },
+                                                   {
+                                                       "name":  "Reveal full account number",
+                                                       "request":  {
+                                                                       "description":  "Full account number for payouts. Audited.",
+                                                                       "method":  "GET",
+                                                                       "url":  "{{baseUrl}}/api/v1/admin/bank-accounts/{{bankAccountId}}/account-number"
+                                                                   }
+                                                   },
+                                                   {
+                                                       "name":  "Verify bank account",
+                                                       "request":  {
+                                                                       "description":  "Marks a bank account (e.g. a replacement account) as VERIFIED.",
+                                                                       "method":  "POST",
+                                                                       "url":  "{{baseUrl}}/api/v1/admin/bank-accounts/{{bankAccountId}}/verify"
+                                                                   }
+                                                   },
+                                                   {
+                                                       "name":  "Reject bank account",
+                                                       "request":  {
+                                                                       "description":  "Rejects a bank account with a reason.",
+                                                                       "method":  "POST",
+                                                                       "header":  [
+                                                                                      {
+                                                                                          "key":  "Content-Type",
+                                                                                          "value":  "application/json"
+                                                                                      }
+                                                                                  ],
+                                                                       "url":  "{{baseUrl}}/api/v1/admin/bank-accounts/{{bankAccountId}}/reject",
+                                                                       "body":  {
+                                                                                    "mode":  "raw",
+                                                                                     "raw":  "{\n  \"reason\": \"IFSC does not match the bank name\"\n}"
+                                                                                 }
+                                                                    }
+                                                    }
+                                                ]
+                                  },
+                                  {
+                                      "name":  "Payment Accounts",
+                                      "item":  [
+                                                   {
+                                                       "name":  "List payment accounts",
+                                                       "event":  [
+                                                                     {
+                                                                         "listen":  "test",
+                                                                         "script":  {
+                                                                                        "exec":  [
+                                                                                                     "const c = pm.response.json();",
+                                                                                                     "if (c.length) pm.collectionVariables.set(\u0027paymentAccountId\u0027, c[0].id);"
+                                                                                                 ]
+                                                                                    }
+                                                                     }
+                                                                 ],
+                                                       "request":  {
+                                                                       "description":  "Saved company UPI accounts shown in the approval dropdown. status: ACTIVE | ARCHIVED. Saves the first id.",
+                                                                       "method":  "GET",
+                                                                       "url":  {
+                                                                                   "raw":  "{{baseUrl}}/api/v1/admin/payment-accounts?status=ACTIVE",
+                                                                                   "host":  [
+                                                                                                "{{baseUrl}}"
+                                                                                            ],
+                                                                                   "path":  [
+                                                                                                "api",
+                                                                                                "v1",
+                                                                                                "admin",
+                                                                                                "payment-accounts"
+                                                                                            ],
+                                                                                   "query":  [
+                                                                                                 {
+                                                                                                     "key":  "status",
+                                                                                                     "value":  "ACTIVE"
+                                                                                                 }
+                                                                                             ]
+                                                                               }
+                                                                   }
+                                                   },
+                                                   {
+                                                       "name":  "Payment defaults",
+                                                       "request":  {
+                                                                       "description":  "Returns { defaultAmount, defaultPaymentAccountId } (either may be null) from the payment setting. The approval form pre-selects defaultPaymentAccountId and pre-fills defaultAmount.",
+                                                                       "method":  "GET",
+                                                                       "url":  "{{baseUrl}}/api/v1/admin/payment-accounts/defaults"
+                                                                   }
+                                                   },
+                                                   {
+                                                       "name":  "Add payment account",
+                                                       "event":  [
+                                                                     {
+                                                                         "listen":  "test",
+                                                                         "script":  {
+                                                                                        "exec":  [
+                                                                                                     "if (pm.response.code === 200) pm.collectionVariables.set(\u0027paymentAccountId\u0027, pm.response.json().id);"
+                                                                                                 ]
+                                                                                    }
+                                                                     }
+                                                                 ],
+                                                       "request":  {
+                                                                       "description":  "Saves a new company UPI account. Active immediately.",
+                                                                       "method":  "POST",
+                                                                       "header":  [
+                                                                                      {
+                                                                                          "key":  "Content-Type",
+                                                                                          "value":  "application/json"
+                                                                                      }
+                                                                                  ],
+                                                                       "url":  "{{baseUrl}}/api/v1/admin/payment-accounts",
+                                                                       "body":  {
+                                                                                    "mode":  "raw",
+                                                                                    "raw":  "{\n  \"label\": \"HDFC Collections\",\n  \"vpa\": \"alliance.collect@hdfcbank\",\n  \"payeeName\": \"AllianceTrading\"\n}"
+                                                                                }
+                                                                   }
+                                                   },
+                                                   {
+                                                       "name":  "Archive payment account",
+                                                       "request":  {
+                                                                       "description":  "Removes the account from the dropdown. Existing assignments keep working. 409 PAYMENT_ACCOUNT_IN_USE if it is the current default or referenced by a scheduled default change (choose another default in Settings first).",
+                                                                       "method":  "POST",
+                                                                       "url":  "{{baseUrl}}/api/v1/admin/payment-accounts/{{paymentAccountId}}/archive"
+                                                                   }
+                                                   },
+                                                   {
+                                                       "name":  "Get member payment assignment",
+                                                       "request":  {
+                                                                       "description":  "UPI account + amount currently assigned to the member.",
+                                                                       "method":  "GET",
+                                                                       "url":  "{{baseUrl}}/api/v1/admin/users/{{userId}}/payment-assignment"
+                                                                   }
+                                                   },
+                                                   {
+                                                       "name":  "Change member payment assignment",
+                                                       "request":  {
+                                                                       "description":  "Reassigns the member\u0027s UPI account and/or amount (the old assignment is kept as history).",
+                                                                       "method":  "POST",
+                                                                       "header":  [
+                                                                                      {
+                                                                                          "key":  "Content-Type",
+                                                                                          "value":  "application/json"
+                                                                                      }
+                                                                                  ],
+                                                                       "url":  "{{baseUrl}}/api/v1/admin/users/{{userId}}/payment-assignment",
+                                                                       "body":  {
+                                                                                    "mode":  "raw",
+                                                                                    "raw":  "{\n  \"paymentAccountId\": \"{{paymentAccountId}}\",\n  \"amount\": 25000\n}"
+                                                                                }
+                                                                   }
+                                                   },
+                                                   {
+                                                       "name":  "Member payment QR (PNG)",
+                                                       "request":  {
+                                                                       "description":  "The UPI QR image the member sees.",
+                                                                       "method":  "GET",
+                                                                       "url":  "{{baseUrl}}/api/v1/admin/users/{{userId}}/payment-assignment/qr"
+                                                                   }
+                                                   }
+                                               ]
+                                  },
+                                  {
+                                      "name":  "Investments",
+                                      "item":  [
+                                                   {
+                                                       "name":  "List investments by status",
+                                                       "event":  [
+                                                                     {
+                                                                         "listen":  "test",
+                                                                         "script":  {
+                                                                                        "exec":  [
+                                                                                                     "const c = pm.response.json();",
+                                                                                                     "if (c.items \u0026\u0026 c.items.length) pm.collectionVariables.set(\u0027investmentId\u0027, c.items[0].id);"
+                                                                                                 ]
+                                                                                    }
+                                                                     }
+                                                                 ],
+                                                       "request":  {
+                                                                       "description":  "status: PENDING_VERIFICATION (default) | ACTIVE | REJECTED | EXIT_REQUESTED | CLOSED. Paged, newest first: PageResponse { items, page, size, totalItems, totalPages }; page is 0-based, size 1..100 (default 20). Rows include expectedVpa and expectedAmount from the payment assignment (null if none). Saves the first id.",
+                                                                       "method":  "GET",
+                                                                       "url":  {
+                                                                                   "raw":  "{{baseUrl}}/api/v1/admin/investments?status=PENDING_VERIFICATION\u0026page=0\u0026size=20",
+                                                                                   "host":  [
+                                                                                                "{{baseUrl}}"
+                                                                                            ],
+                                                                                   "path":  [
+                                                                                                "api",
+                                                                                                "v1",
+                                                                                                "admin",
+                                                                                                "investments"
+                                                                                            ],
+                                                                                   "query":  [
+                                                                                                 {
+                                                                                                     "key":  "status",
+                                                                                                     "value":  "PENDING_VERIFICATION"
+                                                                                                 },
+                                                                                                 {
+                                                                                                     "key":  "page",
+                                                                                                     "value":  "0"
+                                                                                                 },
+                                                                                                 {
+                                                                                                     "key":  "size",
+                                                                                                     "value":  "20"
+                                                                                                 }
+                                                                                             ]
+                                                                               }
+                                                                   }
+                                                   },
+                                                   {
+                                                       "name":  "Get investment",
+                                                       "request":  {
+                                                                       "description":  "One investment by id (AdminInvestmentResponse, incl. expectedVpa and expectedAmount), for side panels and deep links.",
+                                                                       "method":  "GET",
+                                                                       "url":  "{{baseUrl}}/api/v1/admin/investments/{{investmentId}}"
+                                                                   }
+                                                   },
+                                                   {
+                                                       "name":  "Approve investment",
+                                                       "request":  {
+                                                                       "description":  "Confirms the payment was received: activates the investment and posts the deposit to the ledger. No request body.",
+                                                                       "method":  "POST",
+                                                                       "url":  "{{baseUrl}}/api/v1/admin/investments/{{investmentId}}/approve"
+                                                                   }
+                                                   },
+                                                   {
+                                                       "name":  "Reject investment",
+                                                       "request":  {
+                                                                       "description":  "Rejects the payment claim with a reason.",
+                                                                       "method":  "POST",
+                                                                       "header":  [
+                                                                                      {
+                                                                                          "key":  "Content-Type",
+                                                                                          "value":  "application/json"
+                                                                                      }
+                                                                                  ],
+                                                                       "url":  "{{baseUrl}}/api/v1/admin/investments/{{investmentId}}/reject",
+                                                                       "body":  {
+                                                                                    "mode":  "raw",
+                                                                                    "raw":  "{\n  \"reason\": \"Payment not received in the account\"\n}"
+                                                                                }
+                                                                   }
+                                                   },
+                                                   {
+                                                       "name":  "Upload document (admin)",
+                                                       "event":  [
+                                                                     {
+                                                                         "listen":  "test",
+                                                                         "script":  {
+                                                                                        "exec":  [
+                                                                                                     "if (pm.response.code === 200) pm.collectionVariables.set(\u0027documentId\u0027, pm.response.json().id);"
+                                                                                                 ]
+                                                                                    }
+                                                                     }
+                                                                 ],
+                                                       "request":  {
+                                                                                                                                               "description":  "Admin upload (JPEG/PNG/PDF, max 5 MB). docType PAYOUT_PROOF needs ownerUserId (the member); PNL_EVIDENCE or PAYMENT_QR must not send it. Use the returned id in mark-paid, P\u0026L batch (evidenceDocumentId) or payment account (qrDocumentId).",
+                                                                       "method":  "POST",
+                                                                       "url":  "{{baseUrl}}/api/v1/admin/documents",
+                                                                       "body":  {
+                                                                                    "mode":  "formdata",
+                                                                                    "formdata":  [
+                                                                                                     {
+                                                                                                         "key":  "file",
+                                                                                                         "type":  "file",
+                                                                                                         "src":  [
+
+                                                                                                                 ]
+                                                                                                     },
+                                                                                                     {
+                                                                                                         "key":  "docType",
+                                                                                                         "value":  "PAYOUT_PROOF",
+                                                                                                         "type":  "text"
+                                                                                                     },
+                                                                                                     {
+                                                                                                         "key":  "ownerUserId",
+                                                                                                         "value":  "{{userId}}",
+                                                                                                         "type":  "text"
+                                                                                                     }
+                                                                                                 ]
+                                                                                }
+                                                                   }
+                                                   }
+                                               ]
+                                  },
+                                  {
+                                      "name":  "P\u0026L (maker-checker)",
+                                      "item":  [
+                                                   {
+                                                       "name":  "List eligible approvers",
+                                                       "event":  [
+                                                                     {
+                                                                         "listen":  "test",
+                                                                         "script":  {
+                                                                                        "exec":  [
+                                                                                                     "const c = pm.response.json();",
+                                                                                                     "if (c.length) pm.collectionVariables.set(\u0027approverAdminId\u0027, c[0].id);"
+                                                                                                 ]
+                                                                                    }
+                                                                     }
+                                                                 ],
+                                                       "request":  {
+                                                                       "description":  "Other active admins who can approve your P\u0026L batch (excludes you and disabled admins). Only for the approver dropdown; use Admin directory for id -\u003e email lookups. Saves the first id.",
+                                                                       "method":  "GET",
+                                                                       "url":  "{{baseUrl}}/api/v1/admin/pnl-batches/approvers"
+                                                                   }
+                                                   },
+                                                   {
+                                                       "name":  "Create P\u0026L batch (fixed amount each)",
+                                                       "event":  [
+                                                                     {
+                                                                         "listen":  "test",
+                                                                         "script":  {
+                                                                                        "exec":  [
+                                                                                                     "if (pm.response.code === 200) pm.collectionVariables.set(\u0027pnlBatchId\u0027, pm.response.json().id);"
+                                                                                                 ]
+                                                                                    }
+                                                                     }
+                                                                 ],
+                                                       "request":  {
+                                                                       "description":  "valueType FIXED: every target investment receives exactly `amount` rupees (negative = loss). targetType ALL = every active investment; INVESTMENT (investmentId) = one selected member, send one line per member. controlTotal is optional: the server computes it (e.g. 200 x 3 members = 600) and, if sent, it must match. Approval is refused if active investments change after creation.",
+                                                                       "method":  "POST",
+                                                                       "header":  [
+                                                                                      {
+                                                                                          "key":  "Content-Type",
+                                                                                          "value":  "application/json"
+                                                                                      }
+                                                                                  ],
+                                                                       "url":  "{{baseUrl}}/api/v1/admin/pnl-batches",
+                                                                       "body":  {
+                                                                                    "mode":  "raw",
+                                                                                    "raw":  "{\n  \"sessionDate\": \"2026-10-22\",\n  \"valueType\": \"FIXED\",\n  \"approverAdminId\": \"{{approverAdminId}}\",\n  \"notes\": \"Rs 200 to every member\",\n  \"lines\": [\n    { \"targetType\": \"ALL\", \"amount\": 200 }\n  ]\n}"
+                                                                                }
+                                                                   }
+                                                   },
+                                                   {
+                                                       "name":  "Create P\u0026L batch (percentage of principal)",
+                                                       "event":  [
+                                                                     {
+                                                                         "listen":  "test",
+                                                                         "script":  {
+                                                                                        "exec":  [
+                                                                                                     "if (pm.response.code === 200) pm.collectionVariables.set(\u0027pnlBatchId\u0027, pm.response.json().id);"
+                                                                                                 ]
+                                                                                    }
+                                                                     }
+                                                                 ],
+                                                       "request":  {
+                                                                       "description":  "Each investment gets principal x percentage / 100 (e.g. 1 = +1%, -0.5 = -0.5%), rounded to the paisa. controlTotal is computed by the server (optional; if sent it must match). Lines can target ALL or one INVESTMENT. Check Preview before approval; approval is refused if active investments changed after creation.",
+                                                                       "method":  "POST",
+                                                                       "header":  [
+                                                                                      {
+                                                                                          "key":  "Content-Type",
+                                                                                          "value":  "application/json"
+                                                                                      }
+                                                                                  ],
+                                                                       "url":  "{{baseUrl}}/api/v1/admin/pnl-batches",
+                                                                       "body":  {
+                                                                                    "mode":  "raw",
+                                                                                    "raw":  "{\n  \"sessionDate\": \"2026-10-21\",\n  \"valueType\": \"PERCENTAGE\",\n  \"approverAdminId\": \"{{approverAdminId}}\",\n  \"notes\": \"NIFTY options session\",\n  \"lines\": [\n    { \"targetType\": \"ALL\", \"percentage\": 1.0 }\n  ]\n}"
+                                                                                }
+                                                                   }
+                                                   },
+                                                   {
+                                                       "name":  "Preview P\u0026L before posting (dry run)",
+                                                       "request":  {
+                                                                       "description":  "Same body as create (FIXED or PERCENTAGE; approverAdminId optional). Runs the same validation and per-investment calculation but saves nothing. Returns controlTotal, largeChangeThresholdPct and each investment\u0027s amount, resulting balance, fullName, mobile and largeChange (true when the change is more than 10% of principal); warnings holds batch-level messages only. Errors such as a loss-floor breach are returned the same way create would return them. Call it as the admin types to show real totals.",
+                                                                       "method":  "POST",
+                                                                       "header":  [
+                                                                                      {
+                                                                                          "key":  "Content-Type",
+                                                                                          "value":  "application/json"
+                                                                                      }
+                                                                                  ],
+                                                                       "url":  "{{baseUrl}}/api/v1/admin/pnl-batches/preview",
+                                                                       "body":  {
+                                                                                    "mode":  "raw",
+                                                                                    "raw":  "{\n  \"sessionDate\": \"2026-10-21\",\n  \"valueType\": \"PERCENTAGE\",\n  \"approverAdminId\": \"{{approverAdminId}}\",\n  \"notes\": \"NIFTY options session\",\n  \"lines\": [\n    { \"targetType\": \"ALL\", \"percentage\": 1.0 }\n  ]\n}"
+                                                                                }
+                                                                   }
+                                                   },
+                                                   {
+                                                       "name":  "List P\u0026L batches",
+                                                       "request":  {
+                                                                       "description":  "status (optional): DRAFT | APPROVED | REJECTED. valueType (optional): FIXED | PERCENTAGE. assignedToMe=true shows drafts waiting for my approval. Paged, newest first: PageResponse { items, page, size, totalItems, totalPages }; page is 0-based, size 1..100 (default 20).",
+                                                                       "method":  "GET",
+                                                                       "url":  {
+                                                                                   "raw":  "{{baseUrl}}/api/v1/admin/pnl-batches?assignedToMe=false\u0026page=0\u0026size=20",
+                                                                                   "host":  [
+                                                                                                "{{baseUrl}}"
+                                                                                            ],
+                                                                                   "path":  [
+                                                                                                "api",
+                                                                                                "v1",
+                                                                                                "admin",
+                                                                                                "pnl-batches"
+                                                                                            ],
+                                                                                   "query":  [
+                                                                                                 {
+                                                                                                     "key":  "assignedToMe",
+                                                                                                     "value":  "false"
+                                                                                                 },
+                                                                                                 {
+                                                                                                     "key":  "status",
+                                                                                                     "value":  "DRAFT",
+                                                                                                     "disabled":  true
+                                                                                                 },
+                                                                                                 {
+                                                                                                     "key":  "valueType",
+                                                                                                     "value":  "FIXED",
+                                                                                                     "disabled":  true
+                                                                                                 },
+                                                                                                 {
+                                                                                                     "key":  "page",
+                                                                                                     "value":  "0"
+                                                                                                 },
+                                                                                                 {
+                                                                                                     "key":  "size",
+                                                                                                     "value":  "20"
+                                                                                                 }
+                                                                                             ]
+                                                                               }
+                                                                   }
+                                                   },
+                                                   {
+                                                       "name":  "Get P\u0026L batch",
+                                                       "request":  {
+                                                                       "description":  "One batch by id (BatchResponse: id, status, batchType, valueType, sessionDate, controlTotal, makerId, assignedCheckerId, checkerId, notes, createdAt, decidedAt). Use for the approver preview and allocations pages instead of listing all batches.",
+                                                                       "method":  "GET",
+                                                                       "url":  "{{baseUrl}}/api/v1/admin/pnl-batches/{{pnlBatchId}}"
+                                                                   }
+                                                   },
+                                                   {
+                                                       "name":  "Preview saved batch (approver)",
+                                                       "request":  {
+                                                                       "description":  "Per-investment amounts the batch will post, with fullName, mobile and largeChange (true when the change is more than 10% of principal; threshold in largeChangeThresholdPct). warnings holds batch-level messages only (active investments changed since the batch was created). Approver should review this before approving.",
+                                                                       "method":  "GET",
+                                                                       "url":  "{{baseUrl}}/api/v1/admin/pnl-batches/{{pnlBatchId}}/preview"
+                                                                   }
+                                                   },
+                                                   {
+                                                       "name":  "View allocations",
+                                                       "request":  {
+                                                                       "description":  "Per-investment amounts posted by an approved batch.",
+                                                                       "method":  "GET",
+                                                                       "url":  "{{baseUrl}}/api/v1/admin/pnl-batches/{{pnlBatchId}}/allocations"
+                                                                   }
+                                                   },
+                                                   {
+                                                       "name":  "Approve batch (checker)",
+                                                       "request":  {
+                                                                       "description":  "Must be called by the assigned approver (log in as that admin). Posts P\u0026L to member ledgers.",
+                                                                       "method":  "POST",
+                                                                       "url":  "{{baseUrl}}/api/v1/admin/pnl-batches/{{pnlBatchId}}/approve"
+                                                                   }
+                                                   },
+                                                   {
+                                                       "name":  "Reject batch (checker)",
+                                                       "request":  {
+                                                                       "description":  "Assigned approver rejects the batch.",
+                                                                       "method":  "POST",
+                                                                       "header":  [
+                                                                                      {
+                                                                                          "key":  "Content-Type",
+                                                                                          "value":  "application/json"
+                                                                                      }
+                                                                                  ],
+                                                                       "url":  "{{baseUrl}}/api/v1/admin/pnl-batches/{{pnlBatchId}}/reject",
+                                                                       "body":  {
+                                                                                    "mode":  "raw",
+                                                                                    "raw":  "{\n  \"reason\": \"Control total does not match broker statement\"\n}"
+                                                                                }
+                                                                   }
+                                                   }
+                                               ]
+                                  },
+                                  {
+                                      "name":  "Withdrawals",
+                                      "item":  [
+                                                   {
+                                                       "name":  "List withdrawals",
+                                                       "event":  [
+                                                                     {
+                                                                         "listen":  "test",
+                                                                         "script":  {
+                                                                                        "exec":  [
+                                                                                                     "const c = pm.response.json();",
+                                                                                                     "if (c.items \u0026\u0026 c.items.length) pm.collectionVariables.set(\u0027withdrawalId\u0027, c.items[0].id);"
+                                                                                                 ]
+                                                                                    }
+                                                                     }
+                                                                 ],
+                                                       "request":  {
+                                                                       "description":  "status (optional, omit for all): REQUESTED | APPROVED | CANCELLED | REJECTED | PAID | PAYOUT_FAILED. Paged, newest first: PageResponse { items, page, size, totalItems, totalPages }; page is 0-based, size 1..100 (default 20). Each row has the member (userId, fullName, mobile), bank snapshot (bankAccountId, holder, masked number, IFSC, UPI ID), approvedBy/secondApprovedBy, secondApprovalRequired and awaitingSecondApproval. Full account number: Bank Accounts \u003e Reveal full account number with bankAccountId. Saves the first id.",
+                                                                       "method":  "GET",
+                                                                       "url":  {
+                                                                                   "raw":  "{{baseUrl}}/api/v1/admin/withdrawals?status=REQUESTED\u0026page=0\u0026size=20",
+                                                                                   "host":  [
+                                                                                                "{{baseUrl}}"
+                                                                                            ],
+                                                                                   "path":  [
+                                                                                                "api",
+                                                                                                "v1",
+                                                                                                "admin",
+                                                                                                "withdrawals"
+                                                                                            ],
+                                                                                   "query":  [
+                                                                                                 {
+                                                                                                     "key":  "status",
+                                                                                                     "value":  "REQUESTED"
+                                                                                                 },
+                                                                                                 {
+                                                                                                     "key":  "page",
+                                                                                                     "value":  "0"
+                                                                                                 },
+                                                                                                 {
+                                                                                                     "key":  "size",
+                                                                                                     "value":  "20"
+                                                                                                 }
+                                                                                             ]
+                                                                               }
+                                                                   }
+                                                   },
+                                                   {
+                                                       "name":  "Get withdrawal",
+                                                       "request":  {
+                                                                       "description":  "One withdrawal by id (AdminWithdrawalResponse), for side panels and deep links.",
+                                                                       "method":  "GET",
+                                                                       "url":  "{{baseUrl}}/api/v1/admin/withdrawals/{{withdrawalId}}"
+                                                                   }
+                                                   },
+                                                   {
+                                                       "name":  "Approve withdrawal",
+                                                       "request":  {
+                                                                       "description":  "First approval.",
+                                                                       "method":  "POST",
+                                                                       "url":  "{{baseUrl}}/api/v1/admin/withdrawals/{{withdrawalId}}/approve"
+                                                                   }
+                                                   },
+                                                   {
+                                                       "name":  "Second approval",
+                                                       "request":  {
+                                                                       "description":  "Required by a different admin when the amount is above SECOND_APPROVAL_THRESHOLD.",
+                                                                       "method":  "POST",
+                                                                       "url":  "{{baseUrl}}/api/v1/admin/withdrawals/{{withdrawalId}}/second-approve"
+                                                                   }
+                                                   },
+                                                   {
+                                                       "name":  "Reject withdrawal",
+                                                       "request":  {
+                                                                       "description":  "Rejects and releases the held amount.",
+                                                                       "method":  "POST",
+                                                                       "header":  [
+                                                                                      {
+                                                                                          "key":  "Content-Type",
+                                                                                          "value":  "application/json"
+                                                                                      }
+                                                                                  ],
+                                                                       "url":  "{{baseUrl}}/api/v1/admin/withdrawals/{{withdrawalId}}/reject",
+                                                                       "body":  {
+                                                                                    "mode":  "raw",
+                                                                                    "raw":  "{\n  \"reason\": \"Bank details need re-verification\"\n}"
+                                                                                }
+                                                                   }
+                                                   },
+                                                   {
+                                                       "name":  "Mark paid",
+                                                       "request":  {
+                                                                       "description":  "Records the bank transfer. payoutUtr and payoutProofDocumentId are optional.",
+                                                                       "method":  "POST",
+                                                                       "header":  [
+                                                                                      {
+                                                                                          "key":  "Content-Type",
+                                                                                          "value":  "application/json"
+                                                                                      }
+                                                                                  ],
+                                                                       "url":  "{{baseUrl}}/api/v1/admin/withdrawals/{{withdrawalId}}/mark-paid",
+                                                                       "body":  {
+                                                                                    "mode":  "raw",
+                                                                                    "raw":  "{\n  \"payoutUtr\": \"UTR987654321012\"\n}"
+                                                                                }
+                                                                   }
+                                                   },
+                                                   {
+                                                       "name":  "Mark payout failed",
+                                                       "request":  {
+                                                                       "description":  "Records a failed bank transfer so it can be retried.",
+                                                                       "method":  "POST",
+                                                                       "header":  [
+                                                                                      {
+                                                                                          "key":  "Content-Type",
+                                                                                          "value":  "application/json"
+                                                                                      }
+                                                                                  ],
+                                                                       "url":  "{{baseUrl}}/api/v1/admin/withdrawals/{{withdrawalId}}/mark-failed",
+                                                                       "body":  {
+                                                                                    "mode":  "raw",
+                                                                                    "raw":  "{\n  \"failureReason\": \"Beneficiary account closed\"\n}"
+                                                                                }
+                                                                   }
+                                                   }
+                                               ]
+                                  },
+                                  {
+                                      "name":  "Support",
+                                      "item":  [
+                                                   {
+                                                       "name":  "Ticket queue",
+                                                       "event":  [
+                                                                     {
+                                                                         "listen":  "test",
+                                                                         "script":  {
+                                                                                        "exec":  [
+                                                                                                     "const c = pm.response.json().content || [];",
+                                                                                                     "if (c.length) pm.collectionVariables.set(\u0027ticketId\u0027, c[0].id);"
+                                                                                                 ]
+                                                                                    }
+                                                                     }
+                                                                 ],
+                                                       "request":  {
+                                                                       "description":  "status: OPEN | RESOLVED. priority: NORMAL | HIGH.",
+                                                                       "method":  "GET",
+                                                                       "url":  {
+                                                                                   "raw":  "{{baseUrl}}/api/v1/admin/support/tickets?page=0\u0026size=20",
+                                                                                   "host":  [
+                                                                                                "{{baseUrl}}"
+                                                                                            ],
+                                                                                   "path":  [
+                                                                                                "api",
+                                                                                                "v1",
+                                                                                                "admin",
+                                                                                                "support",
+                                                                                                "tickets"
+                                                                                            ],
+                                                                                   "query":  [
+                                                                                                 {
+                                                                                                     "key":  "page",
+                                                                                                     "value":  "0"
+                                                                                                 },
+                                                                                                 {
+                                                                                                     "key":  "size",
+                                                                                                     "value":  "20"
+                                                                                                 },
+                                                                                                 {
+                                                                                                     "key":  "status",
+                                                                                                     "value":  "OPEN",
+                                                                                                     "disabled":  true
+                                                                                                 },
+                                                                                                 {
+                                                                                                     "key":  "priority",
+                                                                                                     "value":  "HIGH",
+                                                                                                     "disabled":  true
+                                                                                                 }
+                                                                                             ]
+                                                                               }
+                                                                   }
+                                                   },
+                                                   {
+                                                       "name":  "Get ticket thread",
+                                                       "request":  {
+                                                                       "description":  "Ticket with all messages and member info.",
+                                                                       "method":  "GET",
+                                                                       "url":  "{{baseUrl}}/api/v1/admin/support/tickets/{{ticketId}}"
+                                                                   }
+                                                   },
+                                                   {
+                                                       "name":  "Reply to ticket",
+                                                       "request":  {
+                                                                       "description":  "Admin reply; the member is notified.",
+                                                                       "method":  "POST",
+                                                                       "header":  [
+                                                                                      {
+                                                                                          "key":  "Content-Type",
+                                                                                          "value":  "application/json"
+                                                                                      }
+                                                                                  ],
+                                                                       "url":  "{{baseUrl}}/api/v1/admin/support/tickets/{{ticketId}}/messages",
+                                                                       "body":  {
+                                                                                    "mode":  "raw",
+                                                                                    "raw":  "{\n  \"message\": \"We have verified your payment; it will reflect shortly.\"\n}"
+                                                                                }
+                                                                   }
+                                                   },
+                                                   {
+                                                       "name":  "Resolve ticket",
+                                                       "request":  {
+                                                                       "description":  "Marks the ticket RESOLVED.",
+                                                                       "method":  "POST",
+                                                                       "url":  "{{baseUrl}}/api/v1/admin/support/tickets/{{ticketId}}/resolve"
+                                                                   }
+                                                   },
+                                                   {
+                                                       "name":  "Reopen ticket",
+                                                       "request":  {
+                                                                       "description":  "Reopens a resolved ticket.",
+                                                                       "method":  "POST",
+                                                                       "url":  "{{baseUrl}}/api/v1/admin/support/tickets/{{ticketId}}/reopen"
+                                                                   }
+                                                   },
+                                                   {
+                                                       "name":  "Set priority",
+                                                       "request":  {
+                                                                       "description":  "priority: NORMAL | HIGH.",
+                                                                       "method":  "POST",
+                                                                       "header":  [
+                                                                                      {
+                                                                                          "key":  "Content-Type",
+                                                                                          "value":  "application/json"
+                                                                                      }
+                                                                                  ],
+                                                                       "url":  "{{baseUrl}}/api/v1/admin/support/tickets/{{ticketId}}/priority",
+                                                                       "body":  {
+                                                                                    "mode":  "raw",
+                                                                                    "raw":  "{\n  \"priority\": \"HIGH\"\n}"
+                                                                                }
+                                                                   }
+                                                   }
+                                               ]
+                                  },
+                                  {
+                                      "name":  "Settings",
+                                      "description":  "SUPER_ADMIN only (403 otherwise). Saves are final (no second admin); effectiveFrom now applies immediately, a later time schedules the change.",
+                                      "item":  [
+                                                   {
+"name":  "Settings overview (current + scheduled)",
+                                                        "request":  {
+                                                                        "description":  "Returns { payment, fees, app, scheduled[] }: payment is { id, fixedAmount, paymentAccount, effectiveFrom }; effective values plus scheduled changes (soonest first). scheduled[] items: { kind: PAYMENT|FEE|APP, id, fixedAmount, paymentAccount { id, label, vpa, payeeName, hasUploadedQr }, withdrawalType, feePct, key, value, effectiveFrom, createdBy, createdAt }. Use scheduled[].id with Cancel scheduled setting.",
+                                                                       "method":  "GET",
+                                                                       "url":  "{{baseUrl}}/api/v1/admin/settings"
+                                                                   }
+                                                   },
+                                                   {
+                                                       "name":  "Save payment setting",
+                                                       "event":  [
+                                                                     {
+                                                                         "listen":  "test",
+                                                                         "script":  {
+                                                                                        "exec":  [
+                                                                                                     "if (pm.response.code === 200) pm.collectionVariables.set(\u0027settingId\u0027, pm.response.json().id);"
+                                                                                                 ]
+                                                                                    }
+                                                                     }
+                                                                 ],
+                                                       "request":  {
+                                                                       "description":  "Direct save of default investment amount + default payment account. Send exactly one of paymentAccountId (an ACTIVE saved account; archived -> 409 ILLEGAL_STATE_TRANSITION) or newAccount { label?, vpa, payeeName, qrDocumentId? } (created in the same transaction and always saved to the account list; UPI ID already saved -> 400). Both or neither -> 400 VALIDATION_FAILED. The account's QR (uploaded, or generated from its UPI ID) is used. Run Payment Accounts > List first to fill paymentAccountId. effectiveFrom required, now or later (up to 5 min past accepted as now; earlier -> 400 VALIDATION_FAILED). Returns { id, status, effectiveFrom }; status ACTIVE (effectiveFrom <= now) or SCHEDULED. Audited as SETTING_CHANGED (old/new paymentAccountId and vpa).",
+                                                                       "method":  "POST",
+                                                                       "header":  [
+                                                                                      {
+                                                                                          "key":  "Content-Type",
+                                                                                          "value":  "application/json"
+                                                                                      }
+                                                                                  ],
+                                                                       "url":  "{{baseUrl}}/api/v1/admin/settings/payment",
+                                                                       "body":  {
+                                                                                    "mode":  "raw",
+                                                                                    "raw":  "{\n  \"fixedAmount\": 50000,\n  \"effectiveFrom\": \"{{$isoTimestamp}}\",\n  \"paymentAccountId\": \"{{paymentAccountId}}\"\n}"
+                                                                                }
+                                                                   }
+                                                    },
+                                                   {
+                                                       "name":  "Save fee setting",
+                                                       "event":  [
+                                                                     {
+                                                                         "listen":  "test",
+                                                                         "script":  {
+                                                                                        "exec":  [
+                                                                                                     "if (pm.response.code === 200) pm.collectionVariables.set(\u0027settingId\u0027, pm.response.json().id);"
+                                                                                                 ]
+                                                                                    }
+                                                                     }
+                                                                 ],
+                                                       "request":  {
+                                                                       "description":  "Direct save of a withdrawal fee as a fraction (0.02 = 2%). withdrawalType: PROFIT | PRINCIPAL. effectiveFrom now or later; returns { id, status: ACTIVE|SCHEDULED, effectiveFrom }.",
+                                                                       "method":  "POST",
+                                                                       "header":  [
+                                                                                      {
+                                                                                          "key":  "Content-Type",
+                                                                                          "value":  "application/json"
+                                                                                      }
+                                                                                  ],
+                                                                       "url":  "{{baseUrl}}/api/v1/admin/settings/fees",
+                                                                       "body":  {
+                                                                                    "mode":  "raw",
+                                                                                    "raw":  "{\n  \"withdrawalType\": \"PROFIT\",\n  \"feePct\": 0.0100,\n  \"effectiveFrom\": \"{{$isoTimestamp}}\"\n}"
+                                                                                }
+                                                                   }
+                                                    },
+                                                   {
+                                                       "name":  "Save app setting",
+                                                       "event":  [
+                                                                     {
+                                                                         "listen":  "test",
+                                                                         "script":  {
+                                                                                        "exec":  [
+                                                                                                     "if (pm.response.code === 200) pm.collectionVariables.set(\u0027settingId\u0027, pm.response.json().id);"
+                                                                                                 ]
+                                                                                    }
+                                                                     }
+                                                                 ],
+                                                       "request":  {
+                                                                        "description":  "key (lowercase): min_profit_withdrawal (rupees) | principal_withdrawal_enabled (true/false) | bank_change_cooloff_hours (hours) | withdrawal_second_approval_threshold (rupees) | min_app_version (x.y.z). Unknown keys and badly typed values are rejected. Direct save; effectiveFrom now or later; returns { id, status: ACTIVE|SCHEDULED, effectiveFrom }.",
+                                                                       "method":  "POST",
+                                                                       "header":  [
+                                                                                      {
+                                                                                          "key":  "Content-Type",
+                                                                                          "value":  "application/json"
+                                                                                      }
+                                                                                  ],
+                                                                       "url":  "{{baseUrl}}/api/v1/admin/settings/app",
+                                                                       "body":  {
+                                                                                    "mode":  "raw",
+                                                                                    "raw":  "{\n  \"key\": \"min_profit_withdrawal\",\n  \"value\": \"1000\",\n  \"effectiveFrom\": \"{{$isoTimestamp}}\"\n}"
+                                                                                }
+                                                                   }
+                                                    },
+                                                    {
+                                                        "name":  "Cancel scheduled setting",
+                                                        "request":  {
+                                                                        "description":  "Cancels a SCHEDULED change before it takes effect. Path kind can be payment | fees | app; use an id from scheduled[] (or settingId from a save). 204 on success, 409 ILLEGAL_STATE_TRANSITION if already active, 404 if not found. Audited as SETTING_SCHEDULE_CANCELLED.",
+                                                                        "method":  "DELETE",
+                                                                        "url":  "{{baseUrl}}/api/v1/admin/settings/app/{{settingId}}"
+                                                                    }
+                                                    }
+                                               ]
+                                  },
+                                  {
+                                      "name":  "Admin Users (Super Admin)",
+                                      "item":  [
+                                                   {
+                                                       "name":  "List admins",
+                                                       "request":  {
+                                                                       "description":  "All admin accounts.",
+                                                                       "method":  "GET",
+                                                                       "url":  "{{baseUrl}}/api/v1/admin/admin-users"
+                                                                   }
+                                                   },
+                                                   {
+                                                       "name":  "Admin directory",
+                                                       "request":  {
+                                                                       "description":  "ADMIN and SUPER_ADMIN. Every admin, including you and disabled admins: [{ id, email, role, status }]. Fetch once and cache for admin id -\u003e email lookups (approvedBy, makerId, actorId, ...).",
+                                                                       "method":  "GET",
+                                                                       "url":  "{{baseUrl}}/api/v1/admin/admin-directory"
+                                                                   }
+                                                   },
+                                                   {
+                                                       "name":  "Create admin",
+                                                       "event":  [
+                                                                     {
+                                                                         "listen":  "test",
+                                                                         "script":  {
+                                                                                        "exec":  [
+                                                                                                     "if (pm.response.code === 200) pm.collectionVariables.set(\u0027adminUserId\u0027, pm.response.json().id);"
+                                                                                                 ]
+                                                                                    }
+                                                                     }
+                                                                 ],
+                                                       "request":  {
+                                                                       "description":  "SUPER_ADMIN only. role: ADMIN | SUPER_ADMIN. Password must be at least 10 characters. displayName required (1-100 chars).",
+                                                                       "method":  "POST",
+                                                                       "header":  [
+                                                                                      {
+                                                                                          "key":  "Content-Type",
+                                                                                          "value":  "application/json"
+                                                                                      }
+                                                                                  ],
+                                                                       "url":  "{{baseUrl}}/api/v1/admin/admin-users",
+                                                                       "body":  {
+                                                                                    "mode":  "raw",
+                                                                                    "raw":  "{\n  \"email\": \"ops@alliancetrading.local\",\n  \"password\": \"OpsSecure1!\",\n  \"role\": \"ADMIN\",\n  \"displayName\": \"Ops Team\"\n}"
+                                                                                }
+                                                                   }
+                                                    },
+                                                    {
+                                                        "name":  "Rename admin",
+                                                        "request":  {
+                                                                        "description":  "SUPER_ADMIN only. Sets displayName (1-100 chars, trimmed). Returns the updated admin.",
+                                                                        "method":  "PATCH",
+                                                                        "header":  [
+                                                                                       {
+                                                                                           "key":  "Content-Type",
+                                                                                           "value":  "application/json"
+                                                                                       }
+                                                                                   ],
+                                                                        "url":  "{{baseUrl}}/api/v1/admin/admin-users/{{adminUserId}}",
+                                                                        "body":  {
+                                                                                     "mode":  "raw",
+                                                                                      "raw":  "{\n  \"displayName\": \"Priya Sharma\"\n}"
+                                                                                  }
+                                                                     }
+                                                     },
+                                                     {
+                                                         "name":  "Reset admin password",
+                                                         "request":  {
+                                                                         "description":  "SUPER_ADMIN only. Sets a new password (10-100 chars) for another admin, clears their lockout and revokes all their sessions. Returns 204. 403 FORBIDDEN on your own account (use Change my password). Audit ADMIN_PASSWORD_RESET. Tell the admin the new password out of band.",
+                                                                         "method":  "POST",
+                                                                         "header":  [
+                                                                                        {
+                                                                                            "key":  "Content-Type",
+                                                                                            "value":  "application/json"
+                                                                                        }
+                                                                                    ],
+                                                                         "url":  "{{baseUrl}}/api/v1/admin/admin-users/{{adminUserId}}/reset-password",
+                                                                         "body":  {
+                                                                                      "mode":  "raw",
+                                                                                      "raw":  "{\n  \"newPassword\": \"TempPassword1!\"\n}"
+                                                                                  }
+                                                                     }
+                                                     }
+                                                ]
+                                  }
+                              ]
+                 }
+             ]
+}

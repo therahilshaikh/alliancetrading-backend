@@ -1,0 +1,22 @@
+spring:
+  datasource:
+    # NeonDB. The password is never committed: set DATABASE_PASSWORD in the deployment environment.
+    url: ${DATABASE_URL:jdbc:postgresql://ep-mute-wind-b5goc44g.c-7.us-east-2.aws.neon.tech/neondb?sslmode=require&channelBinding=require}
+    username: ${DATABASE_USERNAME:neondb_owner}
+    password: ${DATABASE_PASSWORD}
+    hikari:
+      maximum-pool-size: 10
+
+app:
+  storage:
+    # Cloudflare R2. Keys are never committed: set R2_ACCESS_KEY / R2_SECRET_KEY in the deployment environment.
+    endpoint: ${R2_ENDPOINT:https://cbbe7d03d00942a230b6065bdf3f731a.r2.cloudflarestorage.com}
+    region: auto
+    access-key: ${R2_ACCESS_KEY}
+    secret-key: ${R2_SECRET_KEY}
+  sms:
+    provider: ${SMS_PROVIDER:fast2sms}
+
+logging:
+  level:
+    in.ruhmans.alliancetrading: info
