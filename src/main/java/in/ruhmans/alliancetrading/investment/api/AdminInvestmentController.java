@@ -1,6 +1,8 @@
 package in.ruhmans.alliancetrading.investment.api;
 
+import java.math.BigDecimal;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -13,6 +15,7 @@ import in.ruhmans.alliancetrading.investment.domain.Investment;
 import in.ruhmans.alliancetrading.investment.domain.InvestmentStatus;
 import in.ruhmans.alliancetrading.investment.service.InvestmentService;
 import in.ruhmans.alliancetrading.payment.service.PaymentService;
+import in.ruhmans.alliancetrading.pnl.repository.PnlAllocationRepository;
 import in.ruhmans.alliancetrading.user.service.UserDirectory;
 
 import jakarta.validation.Valid;
@@ -33,12 +36,15 @@ public class AdminInvestmentController {
     private final InvestmentService investmentService;
     private final UserDirectory userDirectory;
     private final PaymentService paymentService;
+    private final PnlAllocationRepository pnlAllocationRepository;
 
     public AdminInvestmentController(InvestmentService investmentService, UserDirectory userDirectory,
-                                     PaymentService paymentService) {
+                                     PaymentService paymentService,
+                                     PnlAllocationRepository pnlAllocationRepository) {
         this.investmentService = investmentService;
         this.userDirectory = userDirectory;
         this.paymentService = paymentService;
+        this.pnlAllocationRepository = pnlAllocationRepository;
     }
 
     /** Newest first. */
@@ -56,15 +62,22 @@ public class AdminInvestmentController {
         return ResponseEntity.ok(toResponses(List.of(investmentService.getById(id))).getFirst());
     }
 
-    /** Member labels and expected payments for the whole page in batched lookups. */
     private List<AdminInvestmentResponse> toResponses(List<Investment> investments) {
+        if (investments.isEmpty()) {
+            return List.of();
+        }
         var labels = userDirectory.labels(investments.stream().map(Investment::getUserId)
                 .collect(Collectors.toSet()));
         var expected = paymentService.expectedByAssignmentId(investments.stream()
                 .map(Investment::getPaymentAssignmentId).filter(Objects::nonNull).collect(Collectors.toSet()));
+        Map<UUID, BigDecimal> earned = pnlAllocationRepository.sumByInvestmentIds(investments.stream()
+                .map(Investment::getId).collect(Collectors.toSet())).stream()
+                .collect(Collectors.toMap(PnlAllocationRepository.InvestmentTotal::getInvestmentId,
+                        PnlAllocationRepository.InvestmentTotal::getTotal));
         return investments.stream()
                 .map(i -> AdminInvestmentResponse.from(i, labels.get(i.getUserId()),
-                        i.getPaymentAssignmentId() != null ? expected.get(i.getPaymentAssignmentId()) : null))
+                        i.getPaymentAssignmentId() != null ? expected.get(i.getPaymentAssignmentId()) : null,
+                        earned.getOrDefault(i.getId(), BigDecimal.ZERO)))
                 .toList();
     }
 

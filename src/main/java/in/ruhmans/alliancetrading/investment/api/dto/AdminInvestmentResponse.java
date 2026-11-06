@@ -26,15 +26,17 @@ public record AdminInvestmentResponse(
         InvestmentStatus status,
         String rejectionReason,
         Instant approvedAt,
+        BigDecimal earnedSoFar,
         Instant createdAt) {
 
     public static AdminInvestmentResponse from(Investment i, UserDirectory.UserLabel label,
-                                               PaymentService.ExpectedPayment expected) {
+                                               PaymentService.ExpectedPayment expected,
+                                               BigDecimal earnedSoFar) {
         return new AdminInvestmentResponse(i.getId(), i.getUserId(),
                 label != null ? label.fullName() : null, label != null ? label.mobile() : null,
                 i.getAmount(), i.getPaymentAssignmentId(),
                 expected != null ? expected.vpa() : null, expected != null ? expected.amount() : null,
                 i.getProofDocumentId(), i.getStatus(),
-                i.getRejectionReason(), i.getApprovedAt(), i.getCreatedAt());
+                i.getRejectionReason(), i.getApprovedAt(), earnedSoFar, i.getCreatedAt());
     }
 }

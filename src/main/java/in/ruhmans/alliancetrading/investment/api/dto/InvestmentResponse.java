@@ -16,11 +16,12 @@ public record InvestmentResponse(
         InvestmentStatus status,
         String rejectionReason,
         Instant approvedAt,
+        BigDecimal earnedSoFar,
         Instant createdAt) {
 
-    public static InvestmentResponse from(Investment i) {
+    public static InvestmentResponse from(Investment i, BigDecimal earnedSoFar) {
         return new InvestmentResponse(i.getId(), i.getUserId(), i.getAmount(), i.getPaymentAssignmentId(),
                 i.getProofDocumentId(), i.getStatus(), i.getRejectionReason(),
-                i.getApprovedAt(), i.getCreatedAt());
+                i.getApprovedAt(), earnedSoFar, i.getCreatedAt());
     }
 }

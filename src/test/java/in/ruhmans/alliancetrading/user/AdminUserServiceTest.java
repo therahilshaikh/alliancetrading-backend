@@ -19,6 +19,7 @@ import in.ruhmans.alliancetrading.investment.repository.InvestmentRepository;
 import in.ruhmans.alliancetrading.ledger.repository.UserBalanceRepository;
 import in.ruhmans.alliancetrading.payment.repository.PaymentAccountRepository;
 import in.ruhmans.alliancetrading.payment.repository.UserPaymentAssignmentRepository;
+import in.ruhmans.alliancetrading.pnl.repository.PnlAllocationRepository;
 import in.ruhmans.alliancetrading.user.domain.User;
 import in.ruhmans.alliancetrading.user.domain.UserStatus;
 import in.ruhmans.alliancetrading.user.repository.UserRepository;
@@ -48,7 +49,8 @@ class AdminUserServiceTest {
         adminUserService = new AdminUserService(userRepository, Mockito.mock(ProfileService.class),
                 Mockito.mock(UserBalanceRepository.class), Mockito.mock(InvestmentRepository.class),
                 Mockito.mock(UserPaymentAssignmentRepository.class), Mockito.mock(PaymentAccountRepository.class),
-                sessionService, Mockito.mock(AuditService.class), clock);
+                sessionService, Mockito.mock(AuditService.class),
+                Mockito.mock(PnlAllocationRepository.class), clock);
     }
 
     private User userWithStatus(UserStatus status) {

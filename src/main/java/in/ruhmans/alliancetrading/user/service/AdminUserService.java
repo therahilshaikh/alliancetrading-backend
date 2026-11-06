@@ -6,7 +6,9 @@ import java.time.Instant;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import in.ruhmans.alliancetrading.audit.service.AuditService;
 import in.ruhmans.alliancetrading.auth.service.SessionService;
@@ -14,11 +16,13 @@ import in.ruhmans.alliancetrading.common.error.ApiException;
 import in.ruhmans.alliancetrading.common.error.ErrorCode;
 import in.ruhmans.alliancetrading.common.pagination.PageResponse;
 import in.ruhmans.alliancetrading.investment.api.dto.InvestmentResponse;
+import in.ruhmans.alliancetrading.investment.domain.Investment;
 import in.ruhmans.alliancetrading.investment.repository.InvestmentRepository;
 import in.ruhmans.alliancetrading.ledger.repository.UserBalanceRepository;
 import in.ruhmans.alliancetrading.payment.api.dto.PaymentAssignmentResponse;
 import in.ruhmans.alliancetrading.payment.repository.PaymentAccountRepository;
 import in.ruhmans.alliancetrading.payment.repository.UserPaymentAssignmentRepository;
+import in.ruhmans.alliancetrading.pnl.repository.PnlAllocationRepository;
 import in.ruhmans.alliancetrading.user.domain.User;
 import in.ruhmans.alliancetrading.user.domain.UserStatus;
 import in.ruhmans.alliancetrading.user.repository.AdminUserRow;
@@ -47,13 +51,15 @@ public class AdminUserService {
     private final PaymentAccountRepository paymentAccountRepository;
     private final SessionService sessionService;
     private final AuditService auditService;
+    private final PnlAllocationRepository pnlAllocationRepository;
     private final Clock clock;
 
     public AdminUserService(UserRepository userRepository, ProfileService profileService,
                             UserBalanceRepository userBalanceRepository, InvestmentRepository investmentRepository,
                             UserPaymentAssignmentRepository assignmentRepository,
                             PaymentAccountRepository paymentAccountRepository, SessionService sessionService,
-                            AuditService auditService, Clock clock) {
+                            AuditService auditService, PnlAllocationRepository pnlAllocationRepository,
+                            Clock clock) {
         this.userRepository = userRepository;
         this.profileService = profileService;
         this.userBalanceRepository = userBalanceRepository;
@@ -62,6 +68,7 @@ public class AdminUserService {
         this.paymentAccountRepository = paymentAccountRepository;
         this.sessionService = sessionService;
         this.auditService = auditService;
+        this.pnlAllocationRepository = pnlAllocationRepository;
         this.clock = clock;
     }
 
@@ -87,8 +94,16 @@ public class AdminUserService {
         var balances = balance == null
                 ? new Balances(BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO)
                 : new Balances(balance.getPrincipal(), balance.getProfit(), balance.getHeld(), balance.currentValue());
-        var investments = investmentRepository.findByUserIdOrderByCreatedAtDesc(userId).stream()
-                .map(InvestmentResponse::from).toList();
+        var investmentEntities = investmentRepository.findByUserIdOrderByCreatedAtDesc(userId);
+        Map<UUID, BigDecimal> earned = investmentEntities.isEmpty()
+                ? Map.of()
+                : pnlAllocationRepository.sumByInvestmentIds(investmentEntities.stream()
+                        .map(Investment::getId).collect(Collectors.toSet())).stream()
+                        .collect(Collectors.toMap(PnlAllocationRepository.InvestmentTotal::getInvestmentId,
+                                PnlAllocationRepository.InvestmentTotal::getTotal));
+        var investments = investmentEntities.stream()
+                .map(i -> InvestmentResponse.from(i, earned.getOrDefault(i.getId(), BigDecimal.ZERO)))
+                .toList();
         var assignment = assignmentRepository.findByUserIdAndActiveTrue(userId)
                 .map(a -> PaymentAssignmentResponse.from(a,
                         paymentAccountRepository.findById(a.getPaymentAccountId()).orElseThrow()))
