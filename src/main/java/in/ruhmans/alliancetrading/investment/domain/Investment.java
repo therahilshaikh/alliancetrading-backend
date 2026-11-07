@@ -26,6 +26,9 @@ public class Investment {
     @Column(nullable = false, precision = 15, scale = 2)
     private BigDecimal amount;
 
+    @Column(name = "remaining_principal", nullable = false, precision = 15, scale = 2)
+    private BigDecimal remainingPrincipal = BigDecimal.ZERO.setScale(2);
+
     /** Legacy rows only; new investments reference a payment assignment instead. */
     @Column(name = "payment_setting_id", updatable = false)
     private UUID paymentSettingId;
@@ -75,6 +78,7 @@ public class Investment {
     public UUID getId() { return id; }
     public UUID getUserId() { return userId; }
     public BigDecimal getAmount() { return amount; }
+    public BigDecimal getRemainingPrincipal() { return remainingPrincipal; }
     public UUID getPaymentSettingId() { return paymentSettingId; }
     public UUID getPaymentAssignmentId() { return paymentAssignmentId; }
     public UUID getProofDocumentId() { return proofDocumentId; }
@@ -89,17 +93,22 @@ public class Investment {
         this.status = InvestmentStatus.ACTIVE;
         this.approvedBy = adminId;
         this.approvedAt = now;
+        this.remainingPrincipal = this.amount;
+        this.updatedAt = now;
+    }
+
+    public void debitPrincipal(BigDecimal debit, Instant now) {
+        if (debit.signum() <= 0 || debit.compareTo(this.remainingPrincipal) > 0) {
+            throw new IllegalStateException("Invalid principal debit " + debit
+                    + " against remaining " + this.remainingPrincipal);
+        }
+        this.remainingPrincipal = this.remainingPrincipal.subtract(debit);
         this.updatedAt = now;
     }
 
     public void reject(String reason, Instant now) {
         this.status = InvestmentStatus.REJECTED;
         this.rejectionReason = reason;
-        this.updatedAt = now;
-    }
-
-    public void requestExit(Instant now) {
-        this.status = InvestmentStatus.EXIT_REQUESTED;
         this.updatedAt = now;
     }
 

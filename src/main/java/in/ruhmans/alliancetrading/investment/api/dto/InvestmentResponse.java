@@ -11,6 +11,7 @@ public record InvestmentResponse(
         UUID id,
         UUID userId,
         BigDecimal amount,
+        BigDecimal remainingPrincipal,
         UUID paymentAssignmentId,
         UUID proofDocumentId,
         InvestmentStatus status,
@@ -20,7 +21,8 @@ public record InvestmentResponse(
         Instant createdAt) {
 
     public static InvestmentResponse from(Investment i, BigDecimal earnedSoFar) {
-        return new InvestmentResponse(i.getId(), i.getUserId(), i.getAmount(), i.getPaymentAssignmentId(),
+        return new InvestmentResponse(i.getId(), i.getUserId(), i.getAmount(), i.getRemainingPrincipal(),
+                i.getPaymentAssignmentId(),
                 i.getProofDocumentId(), i.getStatus(), i.getRejectionReason(),
                 i.getApprovedAt(), earnedSoFar, i.getCreatedAt());
     }

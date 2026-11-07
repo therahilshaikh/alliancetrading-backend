@@ -36,16 +36,19 @@ public interface UserRepository extends JpaRepository<User, UUID> {
 
     /**
      * Member search for admins. {@code pattern} is a lower-case LIKE pattern matched against
-     * name and mobile ({@code "%"} for all). One live investment per user is guaranteed by
-     * a partial unique index, so the investment join never duplicates rows.
+     * name and mobile ({@code "%"} for all). A user may hold several live investments, so the
+     * row shows the one PENDING_VERIFICATION if any, otherwise the oldest ACTIVE.
      */
     @Query(value = "SELECT new in.ruhmans.alliancetrading.user.repository.AdminUserRow("
             + "u.id, k.fullName, u.mobile, u.status, u.createdAt, b.principal, b.profit, b.held, i.id, i.status) "
             + "FROM User u "
             + "LEFT JOIN KycProfile k ON k.userId = u.id "
             + "LEFT JOIN UserBalance b ON b.userId = u.id "
-            + "LEFT JOIN Investment i ON i.userId = u.id "
-            + "  AND i.status IN ('PENDING_VERIFICATION','ACTIVE','EXIT_REQUESTED') "
+            + "LEFT JOIN Investment i ON i.id = ("
+            + "    SELECT i2.id FROM Investment i2 WHERE i2.userId = u.id "
+            + "    AND i2.status IN ('PENDING_VERIFICATION','ACTIVE') "
+            + "    ORDER BY CASE WHEN i2.status = 'PENDING_VERIFICATION' THEN 0 ELSE 1 END, i2.createdAt ASC "
+            + "    LIMIT 1) "
             + "WHERE u.status IN :statuses "
             + "AND (lower(coalesce(k.fullName, '')) LIKE :pattern OR u.mobile LIKE :pattern) "
             + "ORDER BY u.createdAt DESC",

@@ -3,6 +3,7 @@ package in.ruhmans.alliancetrading.investment;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
@@ -104,6 +105,30 @@ class InvestmentServiceTest {
     }
 
     @Test
+    void submitBlocksSecondPendingProof() {
+        User user = approvedUserWithBank();
+        when(investmentRepository.existsByUserIdAndStatus(user.getId(),
+                InvestmentStatus.PENDING_VERIFICATION)).thenReturn(true);
+
+        assertThatThrownBy(() -> investmentService.submit(user.getId(),
+                new InvestmentRequest(UUID.randomUUID()), "k"))
+                .isInstanceOf(ApiException.class)
+                .satisfies(e -> assertThat(((ApiException) e).code().name())
+                        .isEqualTo("ILLEGAL_STATE_TRANSITION"));
+    }
+
+    @Test
+    void approveSetsRemainingPrincipalToAmount() {
+        Investment inv = pendingInvestment();
+        when(investmentRepository.findById(inv.getId())).thenReturn(Optional.of(inv));
+        when(investmentRepository.save(any(Investment.class))).thenAnswer(i -> i.getArgument(0));
+
+        investmentService.approve(inv.getId(), UUID.randomUUID());
+
+        assertThat(inv.getRemainingPrincipal()).isEqualByComparingTo(inv.getAmount());
+    }
+
+    @Test
     void submitWithoutAssignmentFails() {
         User user = approvedUserWithBank();
         when(paymentService.requireActiveAssignment(user.getId()))
@@ -150,6 +175,28 @@ class InvestmentServiceTest {
 
         assertThat(inv.getStatus()).isEqualTo(InvestmentStatus.ACTIVE);
         Mockito.verify(ledgerPostingService).post(any(LedgerPostingService.Journal.class));
+    }
+
+    @Test
+    void approveConsumesThePaymentAssignment() {
+        Investment inv = pendingInvestment();
+        when(investmentRepository.findById(inv.getId())).thenReturn(Optional.of(inv));
+        when(investmentRepository.save(any(Investment.class))).thenAnswer(i -> i.getArgument(0));
+
+        investmentService.approve(inv.getId(), UUID.randomUUID());
+
+        Mockito.verify(paymentService).consumeAssignment(eq(inv.getPaymentAssignmentId()), any());
+    }
+
+    @Test
+    void rejectKeepsThePaymentAssignmentActive() {
+        Investment inv = pendingInvestment();
+        when(investmentRepository.findById(inv.getId())).thenReturn(Optional.of(inv));
+        when(investmentRepository.save(any(Investment.class))).thenAnswer(i -> i.getArgument(0));
+
+        investmentService.reject(inv.getId(), UUID.randomUUID(), "Proof unclear");
+
+        Mockito.verify(paymentService, Mockito.never()).consumeAssignment(any(), any());
     }
 
     @Test

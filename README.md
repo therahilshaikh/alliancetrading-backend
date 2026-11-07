@@ -59,7 +59,7 @@ CREATE SCHEMA public;
 | ADMIN | admin@alliancetrading.local / AdminSecure1! ("Ops Admin") |
 | Default investment amount | ₹50,000 (payment setting; pre-fills the admin's assignment form) |
 | Saved payment account | alliancetrading@upi ("Company UPI (sample)") |
-| Fees | 2% profit withdrawal, 5% principal exit |
+| Fees | 2% profit withdrawal, 5% principal withdrawal |
 | Test users | 9876543210, 9876543211, 9876543212 |
 
 Seeding is skipped if the test users already exist. OTP codes are printed to the log by `LoggingSmsSender`.
@@ -119,7 +119,7 @@ Modular monolith, single deployable. Package layout under `in.ruhmans.alliancetr
 | `investment` | Investment submission (amount from the user's payment assignment, payment-proof upload), admin approval posts +PRINCIPAL |
 | `pnl` | P&L batches applied to each target investment: FIXED (same ₹ each) or PERCENTAGE (each investment gets principal × %); targets ALL active or INVESTMENT; server-computed totals; dry-run preview; maker picks the approving admin and only that admin can approve/reject; per-user allocation view |
 | `ledger` | Append-only entries (DB trigger blocks UPDATE/DELETE), user_balances cache, single LedgerPostingService entry point |
-| `withdrawal` | Quote → request → approve/second-approve → paid, fee calculation, principal exits behind feature flag |
+| `withdrawal` | Quote → request → approve/second-approve → paid, fee calculation, partial principal withdrawals (oldest-tranche-first) behind feature flag |
 | `support` | Member support tickets with message threads; admin queue, reply, resolve/reopen, priority |
 | `audit` | Append-only audit log for all admin mutations, document/PII views (`AuditService.json` for safe detail payloads) |
 | `notification` | Transactional outbox + scheduled dispatcher with backoff (push only); `notification.sms` — OTP SMS via Fast2SMS |
@@ -165,7 +165,7 @@ Modular monolith, single deployable. Package layout under `in.ruhmans.alliancetr
 ## Key invariants
 
 - **Ledger is append-only** — a DB trigger raises an exception on UPDATE/DELETE of `ledger_entries`; all money movement goes through `LedgerPostingService.post()`.
-- **One live investment / one open withdrawal / one active session (members only; admins may use several devices) / one active payment assignment** per user — enforced by partial unique indexes, not application checks.
+- **Multiple ACTIVE investments (top-ups) / one pending proof / one open withdrawal / one active session (members only; admins may use several devices) / one active payment assignment** per user — enforced by partial unique indexes, not application checks. Each investment tracks `remaining_principal`; principal withdrawals debit tranches oldest-first and P&L percentages apply to remaining principal.
 - **Maker-checker** — approver ≠ creator, enforced in service and via DB CHECK constraints (second withdrawal approval). P&L batches go further: only the admin the maker assigned may decide (DB CHECK `checker_id = assigned_checker_id`).
 - **Idempotency** — `Idempotency-Key` header on money-moving POSTs; ledger entries carry derived idempotency keys (`base:BUCKET:TYPE`) with a UNIQUE constraint.
 - **PII protection** — PAN, Aadhaar and account numbers encrypted (AES-256-GCM) at rest, HMAC-hashed for uniqueness, shown masked (last 4); decrypted views are audited. Storing full Aadhaar numbers is regulated by UIDAI — obtain compliance sign-off before production.

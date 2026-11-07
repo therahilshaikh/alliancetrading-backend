@@ -423,8 +423,8 @@ public class PnlService {
     }
 
     /**
-     * What each target receives: the fixed amount (FIXED) or principal x percentage / 100 rounded
-     * to the paisa (PERCENTAGE). Exactly one of {@code perInvestment} / {@code percentage} is set.
+     * What each target receives: the fixed amount (FIXED) or remaining principal x percentage / 100
+     * rounded to the paisa (PERCENTAGE). Exactly one of {@code perInvestment} / {@code percentage} is set.
      */
     private static Map<UUID, BigDecimal> lineSplit(List<Investment> targets, BigDecimal perInvestment,
                                                    BigDecimal percentage) {
@@ -432,7 +432,7 @@ public class PnlService {
         for (Investment inv : targets) {
             split.put(inv.getId(), perInvestment != null
                     ? perInvestment
-                    : MoneyUtils.money(inv.getAmount().multiply(percentage).movePointLeft(2)));
+                    : MoneyUtils.money(inv.getRemainingPrincipal().multiply(percentage).movePointLeft(2)));
         }
         return split;
     }

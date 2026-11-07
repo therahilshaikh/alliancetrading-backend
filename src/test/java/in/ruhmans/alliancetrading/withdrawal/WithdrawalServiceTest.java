@@ -9,6 +9,7 @@ import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneId;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -102,7 +103,7 @@ class WithdrawalServiceTest {
         when(userRepository.findById(userId)).thenReturn(Optional.of(user));
         when(bankAccountRepository.findByUserIdAndStatus(userId, BankAccountStatus.VERIFIED))
                 .thenReturn(Optional.of(bank));
-        when(investmentRepository.findLiveByUserId(userId)).thenReturn(Optional.of(inv));
+        when(investmentRepository.findActiveByUserIdOldestFirst(userId)).thenReturn(List.of(inv));
         when(withdrawalRepository.hasOpenWithdrawal(userId)).thenReturn(false);
         when(settingsService.minProfitWithdrawal()).thenReturn(new BigDecimal("100"));
         when(settingsService.principalWithdrawalEnabled()).thenReturn(false);
@@ -267,6 +268,53 @@ class WithdrawalServiceTest {
                 .isInstanceOf(ApiException.class)
                 .satisfies(e -> assertThat(((ApiException) e).code().name())
                         .isEqualTo("ILLEGAL_STATE_TRANSITION"));
+    }
+
+    @Test
+    void principalQuoteRejectsAboveRemainingPrincipal() {
+        UUID userId = UUID.randomUUID();
+        setupHappyPath(userId);
+        when(settingsService.principalWithdrawalEnabled()).thenReturn(true);
+
+        UserBalance balance = new UserBalance(userId, clock.instant());
+        balance.apply(Bucket.PRINCIPAL, new BigDecimal("30000"), clock.instant());
+        when(userBalanceRepository.findById(userId)).thenReturn(Optional.of(balance));
+
+        assertThatThrownBy(() -> withdrawalService.quote(userId, new BigDecimal("50000"),
+                WithdrawalType.PRINCIPAL))
+                .isInstanceOf(ApiException.class)
+                .satisfies(e -> assertThat(((ApiException) e).code().name())
+                        .isEqualTo("INSUFFICIENT_WITHDRAWABLE"));
+    }
+
+    @Test
+    void partialPrincipalWithdrawalDebitsOldestTranchesFirst() {
+        UUID userId = UUID.randomUUID();
+        Investment older = new Investment(userId, new BigDecimal("30000"), UUID.randomUUID(),
+                UUID.randomUUID(), clock.instant());
+        older.approve(UUID.randomUUID(), clock.instant());
+        older.debitPrincipal(new BigDecimal("10000"), clock.instant());
+        Investment newer = new Investment(userId, new BigDecimal("50000"), UUID.randomUUID(),
+                UUID.randomUUID(), clock.instant());
+        newer.approve(UUID.randomUUID(), clock.instant());
+
+        WithdrawalRequest wr = new WithdrawalRequest(userId, older.getId(), WithdrawalType.PRINCIPAL,
+                new BigDecimal("40000"), UUID.randomUUID(), new BigDecimal("0.0500"),
+                new BigDecimal("2000"), new BigDecimal("38000"),
+                UUID.randomUUID(), "Test", "9012", "SBIN0123456", null, "k", clock.instant());
+        wr.approve(UUID.randomUUID(), clock.instant());
+
+        when(withdrawalRepository.findById(wr.getId())).thenReturn(Optional.of(wr));
+        when(settingsService.secondApprovalThreshold()).thenReturn(new BigDecimal("50000"));
+        when(investmentRepository.findActiveByUserIdOldestFirst(userId))
+                .thenReturn(new java.util.ArrayList<>(List.of(older, newer)));
+
+        withdrawalService.markPaid(wr.getId(), UUID.randomUUID(), "UTR123456789CD", null);
+
+        assertThat(older.getRemainingPrincipal()).isEqualByComparingTo("0.00");
+        assertThat(older.getStatus()).isEqualTo(InvestmentStatus.CLOSED);
+        assertThat(newer.getRemainingPrincipal()).isEqualByComparingTo("30000.00");
+        assertThat(newer.getStatus()).isEqualTo(InvestmentStatus.ACTIVE);
     }
 
     @Test

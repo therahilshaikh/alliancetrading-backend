@@ -73,13 +73,6 @@ public class WithdrawalRequest {
     @Column(name = "idempotency_key", nullable = false, unique = true, length = 100, updatable = false)
     private String idempotencyKey;
 
-    /** For PRINCIPAL exits: the principal/profit split captured at exit time, for release. */
-    @Column(name = "exit_principal", precision = 15, scale = 2, updatable = false)
-    private BigDecimal exitPrincipal;
-
-    @Column(name = "exit_profit", precision = 15, scale = 2, updatable = false)
-    private BigDecimal exitProfit;
-
     @Column(name = "approved_by")
     private UUID approvedBy;
 
@@ -140,11 +133,6 @@ public class WithdrawalRequest {
         this.updatedAt = now;
     }
 
-    public void setExitSplit(BigDecimal exitPrincipal, BigDecimal exitProfit) {
-        this.exitPrincipal = exitPrincipal;
-        this.exitProfit = exitProfit;
-    }
-
     public UUID getId() { return id; }
     public UUID getUserId() { return userId; }
     public UUID getInvestmentId() { return investmentId; }
@@ -161,8 +149,6 @@ public class WithdrawalRequest {
     public String getBankVpa() { return bankVpa; }
     public WithdrawalStatus getStatus() { return status; }
     public String getIdempotencyKey() { return idempotencyKey; }
-    public BigDecimal getExitPrincipal() { return exitPrincipal; }
-    public BigDecimal getExitProfit() { return exitProfit; }
     public UUID getApprovedBy() { return approvedBy; }
     public UUID getSecondApprovedBy() { return secondApprovedBy; }
     public UUID getPaidBy() { return paidBy; }

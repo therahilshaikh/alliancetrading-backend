@@ -20,6 +20,7 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -83,6 +84,12 @@ public class AdminPaymentController {
         var assignment = paymentService.assign(userId, SecurityUtils.currentAdminId(), request.toCommand());
         var account = paymentService.requireAccount(assignment.getPaymentAccountId());
         return ResponseEntity.ok(PaymentAssignmentResponse.from(assignment, account));
+    }
+
+    @DeleteMapping("/users/{userId}/payment-assignment")
+    public ResponseEntity<Void> cancelAssignment(@PathVariable UUID userId) {
+        paymentService.cancelAssignment(userId, SecurityUtils.currentAdminId());
+        return ResponseEntity.noContent().build();
     }
 
     /** Preview exactly the QR the member will see. */

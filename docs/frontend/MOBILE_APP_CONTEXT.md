@@ -214,7 +214,7 @@ The same applies after refresh-token reuse or an admin suspension.
 4. `POST /investments { proofDocumentId }` with header **`Idempotency-Key: <uuid>`**. Generate the key once per attempt and reuse it on retries.
 5. Show the investment as `PENDING_VERIFICATION` until the admin approves it (`ACTIVE`) or rejects it (show the reason).
 
-Only **one live investment** per member.
+A member may hold **multiple ACTIVE investments** (top-ups): the admin assigns a new amount (`POST /admin/users/{userId}/payment-assignment`), the member pays and submits proof again through this same flow. Only **one proof may be under review at a time** (`409 ILLEGAL_STATE_TRANSITION` while a PENDING_VERIFICATION exists). Each investment has `amount`, `remainingPrincipal` (after principal withdrawals) and `earnedSoFar`.
 
 ### 6.4 Bank details change
 
@@ -277,7 +277,7 @@ On login and whenever the push token changes, call `PUT /devices/push-token { pu
   - UPI ID `^[a-zA-Z0-9._-]{2,256}@[a-zA-Z]{2,64}$`
 - **Enums** to model as TypeScript union types:
   - User status: `REGISTERED | KYC_SUBMITTED | APPROVED | REJECTED | SUSPENDED`
-  - Investment: `PENDING_VERIFICATION | ACTIVE | REJECTED | EXIT_REQUESTED | CLOSED`
+  - Investment: `PENDING_VERIFICATION | ACTIVE | REJECTED | CLOSED`
   - Withdrawal: `REQUESTED | APPROVED | CANCELLED | REJECTED | PAID | PAYOUT_FAILED`
   - Bank: `PENDING_VERIFICATION | VERIFIED | REJECTED | REPLACED`
 

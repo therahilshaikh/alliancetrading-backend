@@ -113,6 +113,11 @@ public class WithdrawalService {
                 throw new ApiException(ErrorCode.INSUFFICIENT_WITHDRAWABLE,
                         "Amount exceeds withdrawable profit of " + withdrawable);
             }
+        } else {
+            if (gross.compareTo(balance.getPrincipal()) > 0) {
+                throw new ApiException(ErrorCode.INSUFFICIENT_WITHDRAWABLE,
+                        "Amount exceeds remaining principal of " + balance.getPrincipal());
+            }
         }
 
         FeeSetting feeSetting = settingsService.currentFeeSetting(type);
@@ -157,33 +162,11 @@ public class WithdrawalService {
         BigDecimal fee = quote.getFeeAmount();
         BigDecimal net = quote.getNetAmount();
 
-        // For PRINCIPAL exits, recompute gross from the live balance so the HELD
-        // arithmetic is exact (P&L may have posted between quote and request).
-        BigDecimal exitPrincipal = null;
-        BigDecimal exitProfit = null;
-        if (quote.getWithdrawalType() == WithdrawalType.PRINCIPAL) {
-            UserBalance live = userBalanceRepository.findById(userId)
-                    .orElseThrow(() -> new ApiException(ErrorCode.INTERNAL_ERROR, "Balance missing"));
-            exitPrincipal = live.getPrincipal();
-            exitProfit = live.getProfit();
-            gross = exitPrincipal.add(exitProfit);
-            if (gross.signum() <= 0) {
-                throw new ApiException(ErrorCode.ILLEGAL_STATE_TRANSITION,
-                        "Current value is not positive; cannot exit");
-            }
-            var breakdown = FeeCalculator.compute(gross, quote.getFeePct());
-            fee = breakdown.fee();
-            net = breakdown.net();
-        }
-
         WithdrawalRequest wr = new WithdrawalRequest(userId, investment.getId(),
                 quote.getWithdrawalType(), gross, quote.getFeeSettingId(),
                 quote.getFeePct(), fee, net,
                 bank.getId(), bank.getHolderName(), bank.getAccountNumberLast4(),
                 bank.getIfsc(), bank.getVpa(), idempotencyKey, now);
-        if (exitPrincipal != null) {
-            wr.setExitSplit(exitPrincipal, exitProfit);
-        }
 
         try {
             withdrawalRepository.saveAndFlush(wr);
@@ -208,22 +191,15 @@ public class WithdrawalService {
                     "withdrawal", wr.getId().toString(),
                     "withdrawal-hold:" + wr.getId(), "USER", userId));
         } else {
-            // Principal exit: move entire current value to HELD (split already computed above)
-            List<LedgerPostingService.Posting> postings = new java.util.ArrayList<>();
-            postings.add(new LedgerPostingService.Posting(Bucket.PRINCIPAL, EntryType.EXIT_HOLD,
-                    exitPrincipal.negate()));
-            if (exitProfit.signum() != 0) {
-                postings.add(new LedgerPostingService.Posting(Bucket.PROFIT, EntryType.EXIT_HOLD,
-                        exitProfit.negate()));
-            }
-            postings.add(new LedgerPostingService.Posting(Bucket.HELD, EntryType.EXIT_HOLD, gross));
-
+            // Principal withdrawal: hold the gross from the principal bucket only
             ledgerPostingService.post(new LedgerPostingService.Journal(userId, investment.getId(),
-                    postings, "withdrawal", wr.getId().toString(),
-                    "exit-hold:" + wr.getId(), "USER", userId));
-
-            investment.requestExit(now);
-            investmentRepository.save(investment);
+                    List.of(
+                            new LedgerPostingService.Posting(Bucket.PRINCIPAL, EntryType.WITHDRAWAL_HOLD,
+                                    gross.negate()),
+                            new LedgerPostingService.Posting(Bucket.HELD, EntryType.WITHDRAWAL_HOLD,
+                                    gross)),
+                    "withdrawal", wr.getId().toString(),
+                    "withdrawal-hold:" + wr.getId(), "USER", userId));
         }
 
         quote.markUsed(now);
@@ -325,16 +301,6 @@ public class WithdrawalService {
         withdrawalRepository.save(wr);
 
         // For principal withdrawals, reverse the exit request on the investment
-        if (wr.getWithdrawalType() == WithdrawalType.PRINCIPAL) {
-            Investment inv = investmentRepository.findById(wr.getInvestmentId())
-                    .orElseThrow(() -> new ApiException(ErrorCode.INTERNAL_ERROR, "Investment missing"));
-            if (inv.getStatus() == InvestmentStatus.EXIT_REQUESTED) {
-                // Exit cancelled: restore investment to ACTIVE; funds were already released
-                inv.approve(inv.getApprovedBy(), now);
-                investmentRepository.save(inv);
-            }
-        }
-
         outboxService.notifyUser("WITHDRAWAL_REJECTED", wr.getUserId(),
                 AuditService.json("withdrawalId", id, "reason", reason));
         auditService.recordAdmin(adminId, "WITHDRAWAL_REJECTED", "withdrawal_request",
@@ -369,12 +335,9 @@ public class WithdrawalService {
         wr.markPaid(adminId, payoutUtr, payoutProofDocumentId, now);
         withdrawalRepository.save(wr);
 
-        // For principal exits, close the investment
+        // For principal withdrawals, debit the tranche(s), oldest first; close any fully withdrawn
         if (wr.getWithdrawalType() == WithdrawalType.PRINCIPAL) {
-            Investment inv = investmentRepository.findById(wr.getInvestmentId())
-                    .orElseThrow(() -> new ApiException(ErrorCode.INTERNAL_ERROR, "Investment missing"));
-            inv.close(now);
-            investmentRepository.save(inv);
+            debitTranchesOldestFirst(wr.getUserId(), wr.getGrossAmount(), now);
         }
 
         outboxService.notifyUser("WITHDRAWAL_PAID", wr.getUserId(),
@@ -438,43 +401,46 @@ public class WithdrawalService {
     }
 
     private Investment requireActiveInvestment(UUID userId) {
-        return investmentRepository.findLiveByUserId(userId)
-                .filter(i -> i.getStatus() == InvestmentStatus.ACTIVE)
+        return investmentRepository.findActiveByUserIdOldestFirst(userId).stream()
+                .findFirst()
                 .orElseThrow(() -> new ApiException(ErrorCode.ILLEGAL_STATE_TRANSITION,
                         "No active investment found"));
     }
 
-    private void releaseHold(WithdrawalRequest wr, UUID actorId) {
-        // Release the held funds back to PROFIT (for PROFIT type) or back to PRINCIPAL/PROFIT
-        // (for PRINCIPAL/EXIT type — the exit hold moved everything; release restores it)
-        if (wr.getWithdrawalType() == WithdrawalType.PROFIT) {
-            ledgerPostingService.post(new LedgerPostingService.Journal(wr.getUserId(),
-                    wr.getInvestmentId(),
-                    List.of(
-                            new LedgerPostingService.Posting(Bucket.PROFIT,
-                                    EntryType.WITHDRAWAL_RELEASE, wr.getGrossAmount()),
-                            new LedgerPostingService.Posting(Bucket.HELD,
-                                    EntryType.WITHDRAWAL_RELEASE, wr.getGrossAmount().negate())),
-                    "withdrawal", wr.getId().toString(),
-                    "withdrawal-release:" + wr.getId(), "ADMIN", actorId));
-        } else {
-            // PRINCIPAL exit release: reverse the exit hold using the stored split
-            if (wr.getExitPrincipal() == null) {
-                throw new ApiException(ErrorCode.INTERNAL_ERROR,
-                        "Exit split not recorded on withdrawal " + wr.getId());
+    /** Applies a principal debit across the user's ACTIVE investments, oldest first. */
+    private void debitTranchesOldestFirst(UUID userId, BigDecimal amount, Instant now) {
+        BigDecimal remaining = amount;
+        for (Investment tranche : investmentRepository.findActiveByUserIdOldestFirst(userId)) {
+            if (remaining.signum() <= 0) {
+                break;
             }
-            List<LedgerPostingService.Posting> postings = new java.util.ArrayList<>();
-            postings.add(new LedgerPostingService.Posting(Bucket.PRINCIPAL,
-                    EntryType.WITHDRAWAL_RELEASE, wr.getExitPrincipal()));
-            if (wr.getExitProfit().signum() != 0) {
-                postings.add(new LedgerPostingService.Posting(Bucket.PROFIT,
-                        EntryType.WITHDRAWAL_RELEASE, wr.getExitProfit()));
+            BigDecimal debit = tranche.getRemainingPrincipal().min(remaining);
+            if (debit.signum() > 0) {
+                tranche.debitPrincipal(debit, now);
+                if (tranche.getRemainingPrincipal().signum() == 0) {
+                    tranche.close(now);
+                }
+                investmentRepository.save(tranche);
+                remaining = remaining.subtract(debit);
             }
-            postings.add(new LedgerPostingService.Posting(Bucket.HELD,
-                    EntryType.WITHDRAWAL_RELEASE, wr.getGrossAmount().negate()));
-            ledgerPostingService.post(new LedgerPostingService.Journal(wr.getUserId(),
-                    wr.getInvestmentId(), postings, "withdrawal", wr.getId().toString(),
-                    "exit-release:" + wr.getId(), "ADMIN", actorId));
         }
+        if (remaining.signum() > 0) {
+            throw new ApiException(ErrorCode.INSUFFICIENT_WITHDRAWABLE,
+                    "Remaining principal is less than the held amount");
+        }
+    }
+
+    private void releaseHold(WithdrawalRequest wr, UUID actorId) {
+        // Reverse the hold: the gross returns to the bucket it came from
+        Bucket source = wr.getWithdrawalType() == WithdrawalType.PROFIT ? Bucket.PROFIT : Bucket.PRINCIPAL;
+        ledgerPostingService.post(new LedgerPostingService.Journal(wr.getUserId(),
+                wr.getInvestmentId(),
+                List.of(
+                        new LedgerPostingService.Posting(source,
+                                EntryType.WITHDRAWAL_RELEASE, wr.getGrossAmount()),
+                        new LedgerPostingService.Posting(Bucket.HELD,
+                                EntryType.WITHDRAWAL_RELEASE, wr.getGrossAmount().negate())),
+                "withdrawal", wr.getId().toString(),
+                "withdrawal-release:" + wr.getId(), "ADMIN", actorId));
     }
 }

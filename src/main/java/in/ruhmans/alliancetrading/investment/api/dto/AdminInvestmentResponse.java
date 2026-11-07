@@ -19,6 +19,7 @@ public record AdminInvestmentResponse(
         String fullName,
         String mobile,
         BigDecimal amount,
+        BigDecimal remainingPrincipal,
         UUID paymentAssignmentId,
         String expectedVpa,
         BigDecimal expectedAmount,
@@ -34,7 +35,7 @@ public record AdminInvestmentResponse(
                                                BigDecimal earnedSoFar) {
         return new AdminInvestmentResponse(i.getId(), i.getUserId(),
                 label != null ? label.fullName() : null, label != null ? label.mobile() : null,
-                i.getAmount(), i.getPaymentAssignmentId(),
+                i.getAmount(), i.getRemainingPrincipal(), i.getPaymentAssignmentId(),
                 expected != null ? expected.vpa() : null, expected != null ? expected.amount() : null,
                 i.getProofDocumentId(), i.getStatus(),
                 i.getRejectionReason(), i.getApprovedAt(), earnedSoFar, i.getCreatedAt());

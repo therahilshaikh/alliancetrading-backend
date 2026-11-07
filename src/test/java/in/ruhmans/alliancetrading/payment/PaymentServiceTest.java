@@ -19,6 +19,8 @@ import in.ruhmans.alliancetrading.common.error.ApiException;
 import in.ruhmans.alliancetrading.common.error.ErrorCode;
 import in.ruhmans.alliancetrading.files.repository.DocumentRepository;
 import in.ruhmans.alliancetrading.files.service.FileService;
+import in.ruhmans.alliancetrading.investment.domain.InvestmentStatus;
+import in.ruhmans.alliancetrading.investment.repository.InvestmentRepository;
 import in.ruhmans.alliancetrading.payment.domain.PaymentAccount;
 import in.ruhmans.alliancetrading.payment.domain.PaymentAccountStatus;
 import in.ruhmans.alliancetrading.payment.domain.UserPaymentAssignment;
@@ -44,6 +46,7 @@ class PaymentServiceTest {
     private UserPaymentAssignmentRepository assignmentRepository;
     private UserRepository userRepository;
     private SettingsService settingsService;
+    private InvestmentRepository investmentRepository;
     private PaymentService paymentService;
     private Clock clock;
     private final UUID admin = UUID.randomUUID();
@@ -60,9 +63,10 @@ class PaymentServiceTest {
         when(assignmentRepository.save(any(UserPaymentAssignment.class))).thenAnswer(i -> i.getArgument(0));
         when(settingsService.defaultInvestmentAmount()).thenReturn(Optional.of(new BigDecimal("10000.00")));
 
+        investmentRepository = Mockito.mock(InvestmentRepository.class);
         paymentService = new PaymentService(accountRepository, assignmentRepository, userRepository,
                 Mockito.mock(DocumentRepository.class), Mockito.mock(FileService.class), settingsService,
-                new UpiQrGenerator(), Mockito.mock(AuditService.class), clock);
+                new UpiQrGenerator(), Mockito.mock(AuditService.class), investmentRepository, clock);
     }
 
     private User userWithStatus(UserStatus status) {
@@ -278,4 +282,53 @@ class PaymentServiceTest {
         assertThat(created.isActive()).isTrue();
         assertThat(created.getVpa()).isEqualTo("new@upi");
     }
+    // ---- Cancel assignment ----
+
+    @Test
+    void cancelAssignmentDeactivatesTheActiveRow() {
+        UserPaymentAssignment assignment = new UserPaymentAssignment(UUID.randomUUID(),
+                UUID.randomUUID(), new BigDecimal("20000.00"), admin, clock.instant());
+        when(assignmentRepository.findByUserIdAndActiveTrue(assignment.getUserId()))
+                .thenReturn(Optional.of(assignment));
+
+        paymentService.cancelAssignment(assignment.getUserId(), admin);
+
+        assertThat(assignment.isActive()).isFalse();
+        assertThat(assignment.getDeactivatedAt()).isNotNull();
+    }
+
+    @Test
+    void cancelAssignmentWithoutAnActiveOneFails() {
+        UUID userId = UUID.randomUUID();
+        when(assignmentRepository.findByUserIdAndActiveTrue(userId)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> paymentService.cancelAssignment(userId, admin))
+                .isInstanceOf(ApiException.class)
+                .satisfies(e -> assertThat(((ApiException) e).code()).isEqualTo(ErrorCode.NO_PAYMENT_ASSIGNMENT));
+    }
+
+    @Test
+    void consumeAssignmentDeactivatesOnce() {
+        UserPaymentAssignment assignment = new UserPaymentAssignment(UUID.randomUUID(),
+                UUID.randomUUID(), new BigDecimal("50000.00"), admin, clock.instant());
+        when(assignmentRepository.findById(assignment.getId())).thenReturn(Optional.of(assignment));
+
+        paymentService.consumeAssignment(assignment.getId(), admin);
+        paymentService.consumeAssignment(assignment.getId(), admin);
+
+        assertThat(assignment.isActive()).isFalse();
+    }
+
+    @Test
+    void cancelAssignmentBlockedWhileProofUnderReview() {
+        UUID userId = UUID.randomUUID();
+        when(investmentRepository.existsByUserIdAndStatus(userId,
+                InvestmentStatus.PENDING_VERIFICATION)).thenReturn(true);
+
+        assertThatThrownBy(() -> paymentService.cancelAssignment(userId, admin))
+                .isInstanceOf(ApiException.class)
+                .satisfies(e -> assertThat(((ApiException) e).code().name())
+                        .isEqualTo("ILLEGAL_STATE_TRANSITION"));
+    }
 }
+

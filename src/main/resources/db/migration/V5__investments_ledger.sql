@@ -6,10 +6,11 @@ CREATE TABLE investments (
     id                    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id               UUID NOT NULL REFERENCES users(id),
     amount                NUMERIC(15,2) NOT NULL CHECK (amount > 0),
+    remaining_principal   NUMERIC(15,2) NOT NULL DEFAULT 0 CHECK (remaining_principal >= 0),
     payment_setting_id    UUID REFERENCES payment_settings(id),
     proof_document_id     UUID NOT NULL REFERENCES documents(id),
     status                VARCHAR(25) NOT NULL DEFAULT 'PENDING_VERIFICATION'
-                          CHECK (status IN ('PENDING_VERIFICATION','ACTIVE','REJECTED','EXIT_REQUESTED','CLOSED')),
+                          CHECK (status IN ('PENDING_VERIFICATION','ACTIVE','REJECTED','CLOSED')),
     rejection_reason      VARCHAR(500),
     approved_by           UUID REFERENCES admin_users(id),
     approved_at           TIMESTAMPTZ,
@@ -21,10 +22,10 @@ CREATE TABLE investments (
         CHECK (payment_assignment_id IS NOT NULL OR payment_setting_id IS NOT NULL)
 );
 
--- ONE live investment per user
-CREATE UNIQUE INDEX idx_investments_one_live
+-- A user holds many ACTIVE investments (top-ups), but only one proof may be under review at a time
+CREATE UNIQUE INDEX idx_investments_one_pending
     ON investments(user_id)
-    WHERE status IN ('PENDING_VERIFICATION','ACTIVE','EXIT_REQUESTED');
+    WHERE status = 'PENDING_VERIFICATION';
 
 CREATE INDEX idx_investments_status ON investments(status);
 
@@ -37,7 +38,7 @@ CREATE TABLE ledger_entries (
     entry_type       VARCHAR(25) NOT NULL CHECK (entry_type IN (
                          'DEPOSIT','PNL','PNL_ADJUSTMENT',
                          'WITHDRAWAL_HOLD','WITHDRAWAL_RELEASE',
-                         'WITHDRAWAL_PAYOUT','WITHDRAWAL_FEE','EXIT_HOLD')),
+                         'WITHDRAWAL_PAYOUT','WITHDRAWAL_FEE')),
     amount           NUMERIC(15,2) NOT NULL,
     source_type      VARCHAR(50) NOT NULL,
     source_id        VARCHAR(64) NOT NULL,

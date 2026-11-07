@@ -62,7 +62,7 @@ public class AdminDashboardService {
                    p.profit_total, p.profit_today, p.recipients_today
             FROM (SELECT count(DISTINCT user_id) FILTER (WHERE status = 'ACTIVE')                          AS active_investors,
                          count(DISTINCT user_id) FILTER (WHERE status = 'ACTIVE' AND approved_at >= :monthStart) AS new_this_month,
-                         COALESCE(sum(amount) FILTER (WHERE status = 'ACTIVE'), 0)                         AS funds,
+                         COALESCE(sum(remaining_principal) FILTER (WHERE status = 'ACTIVE'), 0)            AS funds,
                          COALESCE(sum(amount) FILTER (WHERE status = 'ACTIVE' AND approved_at >= :monthStart), 0) AS funds_this_month,
                          count(*) FILTER (WHERE status = 'ACTIVE')                                         AS eligible
                   FROM investments) i,

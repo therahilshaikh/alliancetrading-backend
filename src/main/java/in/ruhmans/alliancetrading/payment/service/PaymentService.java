@@ -17,6 +17,8 @@ import in.ruhmans.alliancetrading.common.money.MoneyUtils;
 import in.ruhmans.alliancetrading.files.domain.DocType;
 import in.ruhmans.alliancetrading.files.repository.DocumentRepository;
 import in.ruhmans.alliancetrading.files.service.FileService;
+import in.ruhmans.alliancetrading.investment.domain.InvestmentStatus;
+import in.ruhmans.alliancetrading.investment.repository.InvestmentRepository;
 import in.ruhmans.alliancetrading.payment.domain.PaymentAccount;
 import in.ruhmans.alliancetrading.payment.domain.PaymentAccountStatus;
 import in.ruhmans.alliancetrading.payment.domain.UserPaymentAssignment;
@@ -46,13 +48,15 @@ public class PaymentService {
     private final SettingsService settingsService;
     private final UpiQrGenerator qrGenerator;
     private final AuditService auditService;
+    private final InvestmentRepository investmentRepository;
     private final Clock clock;
 
     public PaymentService(PaymentAccountRepository accountRepository,
                           UserPaymentAssignmentRepository assignmentRepository,
                           UserRepository userRepository, DocumentRepository documentRepository,
                           FileService fileService, SettingsService settingsService,
-                          UpiQrGenerator qrGenerator, AuditService auditService, Clock clock) {
+                          UpiQrGenerator qrGenerator, AuditService auditService,
+                          InvestmentRepository investmentRepository, Clock clock) {
         this.accountRepository = accountRepository;
         this.assignmentRepository = assignmentRepository;
         this.userRepository = userRepository;
@@ -61,6 +65,7 @@ public class PaymentService {
         this.settingsService = settingsService;
         this.qrGenerator = qrGenerator;
         this.auditService = auditService;
+        this.investmentRepository = investmentRepository;
         this.clock = clock;
     }
 
@@ -168,6 +173,39 @@ public class PaymentService {
                         "paymentAccountId", account.getId(), "vpa", account.getVpa(),
                         "amount", amount));
         return assignment;
+    }
+
+    /** Cancels the active assignment before the member pays; refused while a proof is under review. */
+    @Transactional
+    public void cancelAssignment(UUID userId, UUID adminId) {
+        Instant now = clock.instant();
+        if (investmentRepository.existsByUserIdAndStatus(userId, InvestmentStatus.PENDING_VERIFICATION)) {
+            throw new ApiException(ErrorCode.ILLEGAL_STATE_TRANSITION,
+                    "A payment proof is under review; approve or reject it first");
+        }
+        UserPaymentAssignment assignment = assignmentRepository.findByUserIdAndActiveTrue(userId)
+                .orElseThrow(() -> new ApiException(ErrorCode.NO_PAYMENT_ASSIGNMENT,
+                        "There is no active assignment to cancel"));
+        assignment.deactivate(now);
+        assignmentRepository.save(assignment);
+        auditService.recordAdmin(adminId, "PAYMENT_ASSIGNMENT_CANCELLED", "user", userId.toString(),
+                null, AuditService.json("assignmentId", assignment.getId(),
+                        "amount", assignment.getAmount()));
+    }
+
+    /** Marks the assignment consumed once its payment has been verified (investment approved). */
+    @Transactional
+    public void consumeAssignment(UUID assignmentId, UUID adminId) {
+        UserPaymentAssignment assignment = assignmentRepository.findById(assignmentId)
+                .orElseThrow(() -> new ApiException(ErrorCode.NOT_FOUND, "Assignment not found"));
+        if (!assignment.isActive()) {
+            return;
+        }
+        assignment.deactivate(clock.instant());
+        assignmentRepository.save(assignment);
+        auditService.recordAdmin(adminId, "PAYMENT_ASSIGNMENT_FULFILLED", "user",
+                assignment.getUserId().toString(), null,
+                AuditService.json("assignmentId", assignment.getId(), "amount", assignment.getAmount()));
     }
 
     @Transactional(readOnly = true)

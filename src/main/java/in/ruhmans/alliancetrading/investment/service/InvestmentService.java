@@ -81,6 +81,11 @@ public class InvestmentService {
                     "A VERIFIED bank account is required to invest");
         }
 
+        if (investmentRepository.existsByUserIdAndStatus(userId, InvestmentStatus.PENDING_VERIFICATION)) {
+            throw new ApiException(ErrorCode.ILLEGAL_STATE_TRANSITION,
+                    "A payment proof is already under review; wait for it to be verified");
+        }
+
         var assignment = paymentService.requireActiveAssignment(userId);
 
         documentRepository.findById(request.proofDocumentId())
@@ -94,7 +99,7 @@ public class InvestmentService {
             investmentRepository.saveAndFlush(investment);
         } catch (DataIntegrityViolationException e) {
             throw new ApiException(ErrorCode.ILLEGAL_STATE_TRANSITION,
-                    "An active investment already exists for this user");
+                    "A payment proof is already under review; wait for it to be verified");
         }
 
         auditService.recordUser(userId, "INVESTMENT_SUBMITTED", "investment",
@@ -134,6 +139,11 @@ public class InvestmentService {
 
         investment.approve(adminId, now);
         investmentRepository.save(investment);
+
+        // The payment request is fulfilled; the member cannot pay again until the admin assigns anew
+        if (investment.getPaymentAssignmentId() != null) {
+            paymentService.consumeAssignment(investment.getPaymentAssignmentId(), adminId);
+        }
 
         // Post principal to the ledger
         ledgerPostingService.post(new LedgerPostingService.Journal(

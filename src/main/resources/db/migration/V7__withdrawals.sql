@@ -35,8 +35,6 @@ CREATE TABLE withdrawal_requests (
     status                   VARCHAR(20) NOT NULL DEFAULT 'REQUESTED'
                              CHECK (status IN ('REQUESTED','APPROVED','CANCELLED','REJECTED','PAID','PAYOUT_FAILED')),
     idempotency_key          VARCHAR(100) NOT NULL UNIQUE,
-    exit_principal           NUMERIC(15,2),
-    exit_profit              NUMERIC(15,2),
     approved_by              UUID REFERENCES admin_users(id),
     second_approved_by       UUID REFERENCES admin_users(id),
     paid_by                  UUID REFERENCES admin_users(id),

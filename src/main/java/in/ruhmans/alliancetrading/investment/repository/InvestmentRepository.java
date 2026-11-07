@@ -26,8 +26,14 @@ public interface InvestmentRepository extends JpaRepository<Investment, UUID> {
     Optional<Investment> findFirstByStatusOrderByCreatedAtAsc(InvestmentStatus status);
 
     @Query("SELECT i FROM Investment i WHERE i.userId = :userId "
-            + "AND i.status IN ('PENDING_VERIFICATION','ACTIVE','EXIT_REQUESTED')")
-    Optional<Investment> findLiveByUserId(UUID userId);
+            + "AND i.status IN ('PENDING_VERIFICATION','ACTIVE') ORDER BY i.createdAt ASC")
+    List<Investment> findLiveByUserId(UUID userId);
+
+    @Query("SELECT i FROM Investment i WHERE i.userId = :userId AND i.status = 'ACTIVE' "
+            + "ORDER BY i.createdAt ASC")
+    List<Investment> findActiveByUserIdOldestFirst(UUID userId);
+
+    boolean existsByUserIdAndStatus(UUID userId, InvestmentStatus status);
 
     @Query("SELECT i FROM Investment i WHERE i.id IN :ids")
     List<Investment> findAllByIds(List<UUID> ids);

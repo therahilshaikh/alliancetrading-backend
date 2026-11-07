@@ -468,7 +468,7 @@
                                                                      }
                                                                  ],
                                                        "request":  {
-                                                                       "description":  "Calculates fee and net amount for a withdrawal. withdrawalType: PROFIT | PRINCIPAL (principal = full exit). The quote expires after a short time.",
+                                                                       "description":  "Calculates fee and net amount for a withdrawal. withdrawalType: PROFIT | PRINCIPAL (partial amount allowed; debits tranches oldest-first). The quote expires after a short time.",
                                                                        "method":  "POST",
                                                                        "header":  [
                                                                                       {
@@ -1210,7 +1210,7 @@
                                                                      }
                                                                  ],
                                                        "request":  {
-                                                                       "description":  "status: PENDING_VERIFICATION (default) | ACTIVE | REJECTED | EXIT_REQUESTED | CLOSED. Paged, newest first: PageResponse { items, page, size, totalItems, totalPages }; page is 0-based, size 1..100 (default 20). Rows include expectedVpa and expectedAmount from the payment assignment (null if none). Saves the first id.",
+                                                                       "description":  "status: PENDING_VERIFICATION (default) | ACTIVE | REJECTED | CLOSED. Paged, newest first: PageResponse { items, page, size, totalItems, totalPages }; page is 0-based, size 1..100 (default 20). Rows include expectedVpa and expectedAmount from the payment assignment (null if none). Saves the first id.",
                                                                        "method":  "GET",
                                                                        "url":  {
                                                                                    "raw":  "{{baseUrl}}/api/v1/admin/investments?status=PENDING_VERIFICATION\u0026page=0\u0026size=20",
