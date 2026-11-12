@@ -53,10 +53,10 @@ public class KycService {
         User user = userRepository.findByIdForUpdate(userId)
                 .orElseThrow(() -> new ApiException(ErrorCode.NOT_FOUND, "User not found"));
 
-        // if (user.getStatus() != UserStatus.REGISTERED && user.getStatus() != UserStatus.REJECTED) {
-        //     throw new ApiException(ErrorCode.ILLEGAL_STATE_TRANSITION,
-        //             "KYC can only be submitted from REGISTERED or REJECTED status");
-        // }
+        if (user.getStatus() != UserStatus.REGISTERED && user.getStatus() != UserStatus.REJECTED) {
+            throw new ApiException(ErrorCode.ILLEGAL_STATE_TRANSITION,
+                    "KYC can only be submitted from REGISTERED or REJECTED status");
+        }
 
         if (Period.between(request.dob(), LocalDate.ofInstant(now, clock.getZone())).getYears() < MIN_AGE_YEARS) {
             throw new ApiException(ErrorCode.VALIDATION_FAILED,
