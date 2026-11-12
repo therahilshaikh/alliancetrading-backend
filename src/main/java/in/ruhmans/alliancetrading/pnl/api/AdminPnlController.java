@@ -4,9 +4,10 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
-import java.util.stream.Collectors;
 
 import in.ruhmans.alliancetrading.admin.domain.AdminRole;
 import in.ruhmans.alliancetrading.common.error.ApiException;
@@ -55,8 +56,11 @@ public class AdminPnlController {
 
     public record ApproverOption(UUID id, String email, String displayName, AdminRole role) {}
 
-    public record AllocationResponse(UUID investmentId, UUID userId, String fullName, String mobile,
-                                     BigDecimal amount) {}
+    public record TrancheAllocationResponse(UUID investmentId, BigDecimal amount) {}
+
+    /** One member's posted amount; {@code tranches} is its split across their investments and sums to it. */
+    public record AllocationResponse(UUID userId, String fullName, String mobile, BigDecimal amount,
+                                     List<TrancheAllocationResponse> tranches) {}
 
     public record RejectBatchRequest(@Size(max = 500) String reason) {}
 
@@ -98,7 +102,7 @@ public class AdminPnlController {
     }
 
     /**
-     * Dry run of create: same body (approverAdminId optional), same validation and per-investment
+     * Dry run of create: same body (approverAdminId optional), same validation and per-member
      * amounts, nothing saved. Returns the preview with {@code batchId: null}.
      */
     @PostMapping("/preview")
@@ -119,17 +123,23 @@ public class AdminPnlController {
         return ResponseEntity.ok(pnlService.preview(id));
     }
 
-    /** Recipient-level split of an approved batch. */
+    /** Member-level split of an approved batch, with each member's per-investment shares. */
     @GetMapping("/{id}/allocations")
     public ResponseEntity<List<AllocationResponse>> allocations(@PathVariable UUID id) {
-        var allocations = pnlService.allocations(id);
-        var labels = userDirectory.labels(allocations.stream().map(PnlAllocation::getUserId)
-                .collect(Collectors.toSet()));
-        return ResponseEntity.ok(allocations.stream().map(a -> {
-            var label = labels.get(a.getUserId());
-            return new AllocationResponse(a.getInvestmentId(), a.getUserId(),
-                    label != null ? label.fullName() : null, label != null ? label.mobile() : null,
-                    a.getAmount());
+        Map<UUID, List<PnlAllocation>> byMember = new LinkedHashMap<>();
+        for (PnlAllocation a : pnlService.allocations(id)) {
+            byMember.computeIfAbsent(a.getUserId(), k -> new ArrayList<>()).add(a);
+        }
+        var labels = userDirectory.labels(byMember.keySet());
+        return ResponseEntity.ok(byMember.entrySet().stream().map(e -> {
+            var label = labels.get(e.getKey());
+            BigDecimal total = e.getValue().stream().map(PnlAllocation::getAmount)
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+            return new AllocationResponse(e.getKey(),
+                    label != null ? label.fullName() : null, label != null ? label.mobile() : null, total,
+                    e.getValue().stream()
+                            .map(a -> new TrancheAllocationResponse(a.getInvestmentId(), a.getAmount()))
+                            .toList());
         }).toList());
     }
 
@@ -151,7 +161,7 @@ public class AdminPnlController {
     private List<PnlService.LineInput> resolveLines(List<PnlLineRequest> requests) {
         List<PnlService.LineInput> lines = new ArrayList<>();
         for (PnlLineRequest r : requests) {
-            lines.add(new PnlService.LineInput(parseTargetType(r.targetType()), r.investmentId(),
+            lines.add(new PnlService.LineInput(parseTargetType(r.targetType()), r.userId(),
                     r.amount(), r.percentage()));
         }
         return lines;
@@ -161,7 +171,7 @@ public class AdminPnlController {
         try {
             return PnlTargetType.valueOf(raw.trim().toUpperCase());
         } catch (IllegalArgumentException e) {
-            throw new ApiException(ErrorCode.VALIDATION_FAILED, "targetType must be ALL or INVESTMENT");
+            throw new ApiException(ErrorCode.VALIDATION_FAILED, "targetType must be ALL or MEMBER");
         }
     }
 

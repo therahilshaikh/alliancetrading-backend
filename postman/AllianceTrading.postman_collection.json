@@ -1351,7 +1351,7 @@
                                                                      }
                                                                  ],
                                                        "request":  {
-                                                                       "description":  "valueType FIXED: every target investment receives exactly `amount` rupees (negative = loss). targetType ALL = every active investment; INVESTMENT (investmentId) = one selected member, send one line per member. controlTotal is optional: the server computes it (e.g. 200 x 3 members = 600) and, if sent, it must match. Approval is refused if active investments change after creation.",
+                                                                       "description":  "valueType FIXED: every target member receives exactly `amount` rupees once, however many investments they hold (negative = loss); the server splits it across the member's active investments pro-rata by remaining principal. targetType ALL = every member with an active investment; MEMBER (userId) = one selected member, send one line per member. controlTotal is optional: the server computes it (e.g. 200 x 3 members = 600) and, if sent, it must match. Approval is refused if the members change after creation.",
                                                                        "method":  "POST",
                                                                        "header":  [
                                                                                       {
@@ -1379,7 +1379,7 @@
                                                                      }
                                                                  ],
                                                        "request":  {
-                                                                       "description":  "Each investment gets principal x percentage / 100 (e.g. 1 = +1%, -0.5 = -0.5%), rounded to the paisa. controlTotal is computed by the server (optional; if sent it must match). Lines can target ALL or one INVESTMENT. Check Preview before approval; approval is refused if active investments changed after creation.",
+                                                                       "description":  "Each member gets their total remaining principal x percentage / 100 (e.g. 1 = +1%, -0.5 = -0.5%), rounded to the paisa, then split across their active investments pro-rata. controlTotal is computed by the server (optional; if sent it must match). Lines can target ALL or one MEMBER (userId). Check Preview before approval; approval is refused if members' active investments changed after creation.",
                                                                        "method":  "POST",
                                                                        "header":  [
                                                                                       {

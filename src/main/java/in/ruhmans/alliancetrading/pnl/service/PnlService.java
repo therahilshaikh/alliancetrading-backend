@@ -2,14 +2,15 @@ package in.ruhmans.alliancetrading.pnl.service;
 
 import in.ruhmans.alliancetrading.user.service.UserDirectory;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 import in.ruhmans.alliancetrading.admin.domain.AdminUser;
@@ -44,6 +45,12 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+/**
+ * P&L batches with maker-checker approval. P&L is decided per <b>member</b>: FIXED gives each target member
+ * the same rupee amount, PERCENTAGE gives each member a percent of their total remaining principal. Either
+ * way the member amount is then split across the member's ACTIVE investments by {@link PnlAllocator}, so a
+ * member with several investments is paid once, not once per investment.
+ */
 @Service
 public class PnlService {
 
@@ -84,11 +91,12 @@ public class PnlService {
     }
 
     /**
-     * One batch line, applied to every target investment. FIXED batches use {@code amount} (rupees each
-     * target receives); PERCENTAGE batches use {@code percentage} (percent of each target's principal,
-     * e.g. 1.25 = 1.25%). The other field must be null.
+     * One batch line. {@code targetType} ALL = every member with an ACTIVE investment, MEMBER = one member
+     * ({@code userId}). FIXED batches use {@code amount} (rupees each target member receives); PERCENTAGE
+     * batches use {@code percentage} (percent of each member's total remaining principal, e.g. 1.25 = 1.25%).
+     * The other field must be null.
      */
-    public record LineInput(PnlTargetType targetType, UUID investmentId,
+    public record LineInput(PnlTargetType targetType, UUID userId,
                             BigDecimal amount, BigDecimal percentage) {}
 
     /**
@@ -107,7 +115,7 @@ public class PnlService {
         draft.lines().forEach(lineRepository::save);
 
         // Loss floor and target validation against the saved lines
-        computeAllocations(batch, lineRepository.findByBatchId(batch.getId()));
+        computeAllocations(lineRepository.findByBatchId(batch.getId()));
 
         auditService.recordAdmin(makerId, "PNL_BATCH_CREATED", "pnl_batch",
                 batch.getId().toString(), null,
@@ -117,20 +125,31 @@ public class PnlService {
     }
 
     /**
-     * Dry run of {@link #createBatch}: the same validation and per-investment amounts, nothing saved.
+     * Dry run of {@link #createBatch}: the same validation and per-member amounts, nothing saved.
      * Lets the console show real totals (percentages depend on each member's principal) before posting.
      */
     @Transactional(readOnly = true)
     public PreviewResult previewDraft(UUID makerId, CreateBatchCommand command) {
         Draft draft = buildDraft(makerId, command, false);
-        return toPreview(null, draft.batch(), computeAllocations(draft.batch(), draft.lines()));
+        return toPreview(null, draft.batch(), computeAllocations(draft.lines()));
     }
 
-    public record AllocationPreview(UUID investmentId, UUID userId, String fullName, String mobile,
+    /**
+     * One investment's share of a member's amount. {@code earningPrincipal} is its remaining principal less any
+     * part on hold for an open principal withdrawal.
+     */
+    public record TranchePreview(UUID investmentId, BigDecimal earningPrincipal, BigDecimal amount) {}
+
+    /**
+     * One member's line in a preview. {@code principal} is the member's ledger principal (excluding any on hold);
+     * {@code largeChange} is true when {@code amount} exceeds the threshold percent of the member's earning
+     * principal. {@code tranches} always sums to {@code amount}.
+     */
+    public record AllocationPreview(UUID userId, String fullName, String mobile,
                                     BigDecimal amount,
                                     BigDecimal principal, BigDecimal profit,
                                     BigDecimal resultingPrincipal, BigDecimal resultingProfit,
-                                    boolean largeChange) {}
+                                    boolean largeChange, List<TranchePreview> tranches) {}
 
     /**
      * {@code batchId} is null for a dry-run preview. {@code largeChangeThresholdPct} is the percent of principal
@@ -143,13 +162,13 @@ public class PnlService {
     @Transactional(readOnly = true)
     public PreviewResult preview(UUID batchId) {
         PnlBatch batch = getBatch(batchId);
-        return toPreview(batchId, batch, computeAllocations(batch, lineRepository.findByBatchId(batchId)));
+        return toPreview(batchId, batch, computeAllocations(lineRepository.findByBatchId(batchId)));
     }
 
     private static PreviewResult toPreview(UUID batchId, PnlBatch batch, Resolved resolved) {
-        List<String> warnings = new ArrayList<>(resolved.drift);
         return new PreviewResult(batchId, batch.getValueType(), batch.getControlTotal(), batch.getSessionDate(),
-                WARNING_THRESHOLD_PCT.movePointRight(2), new ArrayList<>(resolved.previews), warnings);
+                WARNING_THRESHOLD_PCT.movePointRight(2), List.copyOf(resolved.previews()),
+                List.copyOf(resolved.drift()));
     }
 
     @Transactional
@@ -162,46 +181,47 @@ public class PnlService {
         requireDecider(batch, checkerId);
 
         // Re-validate everything on approve
-        Resolved resolved = computeAllocations(batch, lineRepository.findByBatchId(batchId));
-        if (!resolved.drift.isEmpty()) {
-            // Percentage batches: the approver must post exactly what was previewed
+        Resolved resolved = computeAllocations(lineRepository.findByBatchId(batchId));
+        if (!resolved.drift().isEmpty()) {
+            // The approver must post exactly what was previewed
             throw new ApiException(ErrorCode.ILLEGAL_STATE_TRANSITION,
-                    String.join("; ", resolved.drift) + ". Reject this batch and create a new one.");
+                    String.join("; ", resolved.drift()) + ". Reject this batch and create a new one.");
         }
 
-        for (var e : resolved.allocations.entrySet()) {
-            Investment inv = resolved.investments.get(e.getKey());
-            BigDecimal amount = e.getValue();
+        EntryType entryType = batch.getBatchType() == PnlBatchType.ADJUSTMENT
+                ? EntryType.PNL_ADJUSTMENT : EntryType.PNL;
+        for (MemberAllocation member : resolved.members()) {
+            for (var share : member.tranches().entrySet()) {
+                UUID investmentId = share.getKey();
+                BigDecimal amount = share.getValue();
 
-            // Write allocation row (REGULAR uniqueness enforced by DB unique index)
-            PnlAllocation alloc = new PnlAllocation(batchId, batch.getBatchType(), inv.getId(),
-                    inv.getUserId(), batch.getSessionDate(), amount, now);
-            try {
-                allocationRepository.saveAndFlush(alloc);
-            } catch (org.springframework.dao.DataIntegrityViolationException ex) {
-                throw new ApiException(ErrorCode.ILLEGAL_STATE_TRANSITION,
-                        "Investment already has REGULAR P&L for session date " + batch.getSessionDate());
+                // Allocation row (REGULAR once per investment per day, enforced by DB unique index)
+                try {
+                    allocationRepository.saveAndFlush(new PnlAllocation(batchId, batch.getBatchType(),
+                            investmentId, member.userId(), batch.getSessionDate(), amount, now));
+                } catch (org.springframework.dao.DataIntegrityViolationException ex) {
+                    throw new ApiException(ErrorCode.ILLEGAL_STATE_TRANSITION,
+                            "Investment already has REGULAR P&L for session date " + batch.getSessionDate());
+                }
+
+                ledgerPostingService.post(new LedgerPostingService.Journal(
+                        member.userId(), investmentId,
+                        List.of(new LedgerPostingService.Posting(Bucket.PROFIT, entryType, amount)),
+                        "pnl_batch", batchId.toString(),
+                        "pnl:" + batchId + ":" + investmentId,
+                        "ADMIN", checkerId));
             }
 
-            // Post to ledger
-            ledgerPostingService.post(new LedgerPostingService.Journal(
-                    inv.getUserId(), inv.getId(),
-                    List.of(new LedgerPostingService.Posting(Bucket.PROFIT,
-                            batch.getBatchType() == PnlBatchType.ADJUSTMENT
-                                    ? EntryType.PNL_ADJUSTMENT : EntryType.PNL,
-                            amount)),
-                    "pnl_batch", batchId.toString(),
-                    "pnl:" + batchId + ":" + inv.getId(),
-                    "ADMIN", checkerId));
-
-            outboxService.notifyUser("PNL_POSTED", inv.getUserId(),
-                    "{\"batchId\":\"" + batchId + "\",\"amount\":" + amount + "}");
+            // One message per member with their total, however many investments it was split across
+            outboxService.notifyUser("PNL_POSTED", member.userId(),
+                    "{\"batchId\":\"" + batchId + "\",\"amount\":" + member.amount() + "}");
         }
 
         batch.approve(checkerId, now);
         batchRepository.save(batch);
         auditService.recordAdmin(checkerId, "PNL_BATCH_APPROVED", "pnl_batch", batchId.toString(),
-                null, null);
+                null, AuditService.json("members", resolved.members().size(),
+                        "controlTotal", batch.getControlTotal()));
     }
 
     @Transactional
@@ -242,7 +262,7 @@ public class PnlService {
         return batchRepository.findByAssignedCheckerIdAndStatus(adminId, PnlBatchStatus.DRAFT, pageable);
     }
 
-    /** Per-user split written when the batch was approved (empty until then). */
+    /** Per-investment rows written when the batch was approved (empty until then). */
     @Transactional(readOnly = true)
     public List<PnlAllocation> allocations(UUID batchId) {
         getBatch(batchId);
@@ -285,10 +305,22 @@ public class PnlService {
         }
     }
 
+    /**
+     * A member's ACTIVE investments and the principal each still has earning. Principal on hold for an open
+     * withdrawal has already left the ledger balance but not yet the investments (they are debited at payout),
+     * so the difference is taken off the investments oldest first, the same order payout uses.
+     * {@code earning} holds only investments with principal left, oldest first.
+     */
+    private record MemberPosition(UUID userId, List<Investment> investments, Map<UUID, BigDecimal> earning,
+                                  BigDecimal earningPrincipal, UserBalance balance) {}
+
+    /** A member's amount and its split across the investments still earning (oldest first). */
+    private record MemberAllocation(MemberPosition position, BigDecimal amount, Map<UUID, BigDecimal> tranches) {
+        UUID userId() { return position.userId(); }
+    }
+
     /** {@code drift}: lines whose recomputed total no longer matches the total stored at creation. */
-    private record Resolved(Map<UUID, BigDecimal> allocations,
-                            Map<UUID, Investment> investments,
-                            List<AllocationPreview> previews,
+    private record Resolved(List<MemberAllocation> members, List<AllocationPreview> previews,
                             List<String> drift) {}
 
     /** A validated, unsaved batch and its lines (line totals computed). */
@@ -333,12 +365,12 @@ public class PnlService {
             if (li.targetType() == null) {
                 throw new ApiException(ErrorCode.VALIDATION_FAILED, "targetType is required for every line");
             }
-            BigDecimal perInvestment = valueType == PnlValueType.FIXED ? requireFixedAmount(li) : null;
+            BigDecimal perMember = valueType == PnlValueType.FIXED ? requireFixedAmount(li) : null;
             BigDecimal percentage = valueType == PnlValueType.PERCENTAGE ? requirePercentage(li) : null;
-            List<Investment> targets = resolveTargets(li.targetType(), li.investmentId());
-            BigDecimal lineTotal = total(lineSplit(targets, perInvestment, percentage));
-            lines.add(new PnlLine(batch.getId(), li.targetType(), li.investmentId(),
-                    lineTotal, percentage, perInvestment));
+            BigDecimal lineTotal = resolveMembers(li.targetType(), li.userId()).values().stream()
+                    .map(position -> memberAmount(position, perMember, percentage))
+                    .reduce(MoneyUtils.ZERO, BigDecimal::add);
+            lines.add(new PnlLine(batch.getId(), li.targetType(), li.userId(), lineTotal, percentage, perMember));
             sum = sum.add(lineTotal);
         }
 
@@ -352,93 +384,141 @@ public class PnlService {
     }
 
     /**
-     * Resolves all lines to per-investment allocations. Validates:
-     * targets exist, investments ACTIVE, loss floor respected.
+     * Resolves all lines to per-member amounts and their per-investment split. Validates: every target member
+     * holds an ACTIVE investment, no member is targeted twice, and the loss floor holds for each member.
      */
-    private Resolved computeAllocations(PnlBatch batch, List<PnlLine> lines) {
-        Map<UUID, BigDecimal> allocations = new LinkedHashMap<>();
-        Map<UUID, Investment> investments = new HashMap<>();
-        List<AllocationPreview> previews = new ArrayList<>();
+    private Resolved computeAllocations(List<PnlLine> lines) {
+        Map<UUID, MemberAllocation> members = new LinkedHashMap<>();
         List<String> drift = new ArrayList<>();
 
         for (PnlLine line : lines) {
-            List<Investment> targets = resolveTargets(line.getTargetType(), line.getInvestmentId());
-            targets.forEach(inv -> investments.put(inv.getId(), inv));
-
-            Map<UUID, BigDecimal> split = lineSplit(targets, line.getAmountPerInvestment(), line.getPercentage());
-            BigDecimal recomputed = total(split);
+            BigDecimal recomputed = MoneyUtils.ZERO;
+            for (MemberPosition position : resolveMembers(line.getTargetType(), line.getUserId()).values()) {
+                UUID userId = position.userId();
+                if (members.containsKey(userId)) {
+                    throw new ApiException(ErrorCode.VALIDATION_FAILED,
+                            "Member " + userId + " is targeted by more than one line; use one line per member");
+                }
+                BigDecimal amount = memberAmount(position, line.getAmountPerMember(), line.getPercentage());
+                members.put(userId, new MemberAllocation(position, amount,
+                        PnlAllocator.split(amount, position.earning())));
+                recomputed = recomputed.add(amount);
+            }
             if (recomputed.compareTo(line.getAmount()) != 0) {
-                String rate = line.getPercentage() != null ? line.getPercentage() + "%" : line.getAmountPerInvestment() + " each";
+                String rate = line.getPercentage() != null
+                        ? line.getPercentage().stripTrailingZeros().toPlainString() + "%"
+                        : line.getAmountPerMember() + " per member";
                 drift.add(line.getTargetType() + " line at " + rate + " now totals " + recomputed
                         + " instead of " + line.getAmount()
-                        + " because active investments changed since the batch was created");
+                        + " because members' active investments changed since the batch was created");
             }
-            split.forEach((invId, amt) -> allocations.merge(invId, amt, BigDecimal::add));
         }
 
         // Loss floor + previews; member names/mobiles in one batched lookup
-        Map<UUID, UserDirectory.UserLabel> labels = userDirectory.labels(
-                allocations.keySet().stream().map(id -> investments.get(id).getUserId()).collect(java.util.stream.Collectors.toSet()));
-        for (var e : allocations.entrySet()) {
-            Investment inv = investments.get(e.getKey());
-            UserBalance balance = userBalanceRepository.findById(inv.getUserId())
-                    .orElse(new UserBalance(inv.getUserId(), clock.instant()));
+        Map<UUID, UserDirectory.UserLabel> labels = userDirectory.labels(Set.copyOf(members.keySet()));
+        List<AllocationPreview> previews = new ArrayList<>();
+        for (MemberAllocation m : members.values()) {
+            UserBalance balance = m.position().balance();
             BigDecimal currentValue = balance.getPrincipal().add(balance.getProfit());
-            if (currentValue.add(e.getValue()).signum() < 0) {
+            if (currentValue.add(m.amount()).signum() < 0) {
                 throw new ApiException(ErrorCode.VALIDATION_FAILED,
-                        "Loss floor breach for investment " + inv.getId()
-                        + ": current value " + currentValue + " + delta " + e.getValue() + " < 0");
+                        "Loss floor breach for member " + m.userId()
+                        + ": current value " + currentValue + " + delta " + m.amount() + " < 0");
             }
-            UserDirectory.UserLabel label = labels.get(inv.getUserId());
-            boolean largeChange = e.getValue().abs()
-                    .compareTo(inv.getAmount().multiply(WARNING_THRESHOLD_PCT)) > 0;
-            previews.add(new AllocationPreview(inv.getId(), inv.getUserId(),
+            UserDirectory.UserLabel label = labels.get(m.userId());
+            boolean largeChange = m.amount().abs()
+                    .compareTo(m.position().earningPrincipal().multiply(WARNING_THRESHOLD_PCT)) > 0;
+            List<TranchePreview> tranches = m.position().earning().entrySet().stream()
+                    .map(e -> new TranchePreview(e.getKey(), e.getValue(), m.tranches().get(e.getKey())))
+                    .toList();
+            previews.add(new AllocationPreview(m.userId(),
                     label != null ? label.fullName() : null, label != null ? label.mobile() : null,
-                    e.getValue(),
+                    m.amount(),
                     balance.getPrincipal(), balance.getProfit(),
-                    balance.getPrincipal(), balance.getProfit().add(e.getValue()),
-                    largeChange));
+                    balance.getPrincipal(), balance.getProfit().add(m.amount()),
+                    largeChange, tranches));
         }
 
-        return new Resolved(allocations, investments, previews, drift);
+        return new Resolved(List.copyOf(members.values()), previews, drift);
     }
 
-    /** The ACTIVE investments a line applies to. */
-    private List<Investment> resolveTargets(PnlTargetType targetType, UUID investmentId) {
+    /**
+     * Target members and their earning positions, in a stable order. ALL skips members whose whole principal
+     * is on hold for a withdrawal; a MEMBER line for such a member is refused.
+     */
+    private Map<UUID, MemberPosition> resolveMembers(PnlTargetType targetType, UUID userId) {
         return switch (targetType) {
-            case INVESTMENT -> {
-                if (investmentId == null) {
-                    throw new ApiException(ErrorCode.VALIDATION_FAILED, "investmentId is required for INVESTMENT lines");
+            case MEMBER -> {
+                if (userId == null) {
+                    throw new ApiException(ErrorCode.VALIDATION_FAILED, "userId is required for MEMBER lines");
                 }
-                yield List.of(resolveInvestment(investmentId));
+                List<Investment> active = investmentRepository.findActiveByUserIdOldestFirst(userId);
+                if (active.isEmpty()) {
+                    throw new ApiException(ErrorCode.ILLEGAL_STATE_TRANSITION,
+                            "Member " + userId + " has no ACTIVE investment");
+                }
+                MemberPosition position = position(userId, active);
+                if (position.earning().isEmpty()) {
+                    throw new ApiException(ErrorCode.ILLEGAL_STATE_TRANSITION,
+                            "Member " + userId + " has all principal on hold for a withdrawal");
+                }
+                yield Map.of(userId, position);
             }
             case ALL -> {
+                if (userId != null) {
+                    throw new ApiException(ErrorCode.VALIDATION_FAILED, "userId is only allowed for MEMBER lines");
+                }
                 List<Investment> active = investmentRepository.findByStatusOrderByCreatedAt(InvestmentStatus.ACTIVE);
-                if (active.isEmpty()) {
+                Map<UUID, List<Investment>> byMember = new LinkedHashMap<>();
+                for (Investment inv : active) {
+                    byMember.computeIfAbsent(inv.getUserId(), k -> new ArrayList<>()).add(inv);
+                }
+                Map<UUID, MemberPosition> positions = new LinkedHashMap<>();
+                byMember.forEach((id, investments) -> {
+                    MemberPosition position = position(id, investments);
+                    if (!position.earning().isEmpty()) {
+                        positions.put(id, position);
+                    }
+                });
+                if (positions.isEmpty()) {
                     throw new ApiException(ErrorCode.VALIDATION_FAILED, "There are no ACTIVE investments");
                 }
-                yield active;
+                yield positions;
             }
         };
     }
 
-    /**
-     * What each target receives: the fixed amount (FIXED) or remaining principal x percentage / 100
-     * rounded to the paisa (PERCENTAGE). Exactly one of {@code perInvestment} / {@code percentage} is set.
-     */
-    private static Map<UUID, BigDecimal> lineSplit(List<Investment> targets, BigDecimal perInvestment,
-                                                   BigDecimal percentage) {
-        Map<UUID, BigDecimal> split = new LinkedHashMap<>();
-        for (Investment inv : targets) {
-            split.put(inv.getId(), perInvestment != null
-                    ? perInvestment
-                    : MoneyUtils.money(inv.getRemainingPrincipal().multiply(percentage).movePointLeft(2)));
+    /** See {@link MemberPosition}. {@code investments} are the member's ACTIVE investments, oldest first. */
+    private MemberPosition position(UUID userId, List<Investment> investments) {
+        UserBalance balance = userBalanceRepository.findById(userId)
+                .orElse(new UserBalance(userId, clock.instant()));
+        BigDecimal invested = investments.stream().map(Investment::getRemainingPrincipal)
+                .reduce(MoneyUtils.ZERO, BigDecimal::add);
+        BigDecimal held = invested.subtract(balance.getPrincipal()).max(MoneyUtils.ZERO);
+
+        Map<UUID, BigDecimal> earning = new LinkedHashMap<>();
+        BigDecimal earningPrincipal = MoneyUtils.ZERO;
+        for (Investment inv : investments) {
+            BigDecimal taken = inv.getRemainingPrincipal().min(held);
+            held = held.subtract(taken);
+            BigDecimal left = inv.getRemainingPrincipal().subtract(taken);
+            if (left.signum() > 0) {
+                earning.put(inv.getId(), left);
+                earningPrincipal = earningPrincipal.add(left);
+            }
         }
-        return split;
+        return new MemberPosition(userId, investments, earning, earningPrincipal, balance);
     }
 
-    private static BigDecimal total(Map<UUID, BigDecimal> split) {
-        return split.values().stream().reduce(MoneyUtils.ZERO, BigDecimal::add);
+    /**
+     * What a member receives: the fixed amount (FIXED), or their earning principal x percentage / 100
+     * rounded to the paisa (PERCENTAGE). Exactly one of {@code perMember} / {@code percentage} is set.
+     */
+    private static BigDecimal memberAmount(MemberPosition position, BigDecimal perMember, BigDecimal percentage) {
+        if (perMember != null) {
+            return perMember;
+        }
+        return MoneyUtils.money(position.earningPrincipal().multiply(percentage).movePointLeft(2));
     }
 
     private static BigDecimal requireFixedAmount(LineInput li) {
@@ -468,22 +548,11 @@ public class PnlService {
         if (percentage == null) {
             throw new ApiException(ErrorCode.VALIDATION_FAILED, "percentage is required for every line");
         }
-        BigDecimal p = percentage.setScale(MoneyUtils.PERCENT_SCALE, java.math.RoundingMode.HALF_UP);
+        BigDecimal p = percentage.setScale(MoneyUtils.PERCENT_SCALE, RoundingMode.HALF_UP);
         if (p.signum() == 0 || p.compareTo(new BigDecimal("-100")) <= 0 || p.compareTo(new BigDecimal("100")) > 0) {
             throw new ApiException(ErrorCode.VALIDATION_FAILED,
                     "percentage must be non-zero, greater than -100 and at most 100");
         }
         return p;
-    }
-
-    private Investment resolveInvestment(UUID investmentId) {
-        Investment inv = investmentRepository.findById(investmentId)
-                .orElseThrow(() -> new ApiException(ErrorCode.VALIDATION_FAILED,
-                        "Investment not found: " + investmentId));
-        if (inv.getStatus() != InvestmentStatus.ACTIVE) {
-            throw new ApiException(ErrorCode.ILLEGAL_STATE_TRANSITION,
-                    "Investment " + investmentId + " is not ACTIVE");
-        }
-        return inv;
     }
 }

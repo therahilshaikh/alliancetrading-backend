@@ -1,6 +1,16 @@
 spring:
   application:
     name: alliancetrading
+  datasource:
+    hikari:
+      # Neon suspends idle compute (~5 min) and drops its connections; retire ours first.
+      # minimum-idle 0 lets idle connections close so the compute can still auto-suspend.
+      minimum-idle: 0
+      idle-timeout: 120000
+      max-lifetime: 240000
+      keepalive-time: 60000
+      # Allow for a cold start when the compute is waking up
+      connection-timeout: 30000
   flyway:
     enabled: true
     locations: classpath:db/migration

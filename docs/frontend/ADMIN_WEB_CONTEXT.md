@@ -226,31 +226,35 @@ Admins handle PII and money. **Log out after 30 minutes without user activity** 
 
 The "Post P&L" form has:
 - session date
-- **Type** toggle: **Fixed ₹ each** / **% of principal**
-- recipients: **All active members**, or selected members (one `INVESTMENT` line per selected member's investment)
+- **Type** toggle: **Fixed ₹ per member** / **% of principal**
+- recipients: **All active members**, or selected members (one `MEMBER` line per selected member)
 - value (₹ or %, negative for a loss)
 - approver
 - notes
 
+P&L is decided **per member**. A member holding several investments (tranches) is paid once; the server splits the member's amount across their active investments in proportion to each one's remaining principal (rounded to the paisa, always summing exactly to the member amount). Example: ₹1,000 fixed to a member with ₹50,000 + ₹20,000 → ₹714.29 + ₹285.71.
+
 | | Fixed (`valueType: "FIXED"`) | Percentage (`valueType: "PERCENTAGE"`) |
 |---|---|---|
-| Line | `{ targetType: "ALL" \| "INVESTMENT", investmentId?, amount: 200 }` | `{ targetType: "ALL" \| "INVESTMENT", investmentId?, percentage: 1 }` |
-| Each target gets | exactly `amount` | its own principal × `percentage` / 100, rounded to the paisa |
+| Line | `{ targetType: "ALL" \| "MEMBER", userId?, amount: 200 }` | `{ targetType: "ALL" \| "MEMBER", userId?, percentage: 1 }` |
+| Each member gets | exactly `amount`, however many investments they hold | their earning principal (remaining principal less any on hold for a withdrawal) × `percentage` / 100, rounded to the paisa |
 | `controlTotal` | optional: the server computes it; if sent, it must match | same |
 
+- A member may appear in only one line (`ALL` plus a `MEMBER` line for someone already covered → `400 VALIDATION_FAILED`). A `MEMBER` with no active investment → `409 ILLEGAL_STATE_TRANSITION`.
 - **Live totals while typing:**
   - **Fixed:** the form may show "₹200 × 12 members = ₹2,400". This is display arithmetic on what the admin typed and selected, and is allowed.
-  - **Percentage:** principals differ, so call **`POST /admin/pnl-batches/preview`**. Send the same body as create (`approverAdminId` optional), debounced about 400 ms. It saves nothing and returns `controlTotal`, each investment's amount and resulting balance, and warnings.
+  - **Percentage:** principals differ, so call **`POST /admin/pnl-batches/preview`**. Send the same body as create (`approverAdminId` optional), debounced about 400 ms. It saves nothing and returns `controlTotal`, each member's amount and resulting balance, and warnings.
   - Use the same dry run for Fixed too, to show loss-floor errors and large-change flags before posting.
-- **Allocation rows** in both previews include `fullName` (null until KYC is filled) and `mobile`, so no per-member lookups are needed.
-- **`allocations[].largeChange`** marks a change of more than 10% of principal. The threshold comes back as `largeChangeThresholdPct` (10), so don't hard-code it. Highlight those rows.
-- **`warnings`** holds batch-level messages only, for example "active investments changed since the batch was created".
+- **Preview rows** (`allocations[]`) are one per member: `{ userId, fullName, mobile, amount, principal, profit, resultingPrincipal, resultingProfit, largeChange, tranches: [{ investmentId, earningPrincipal, amount }] }`. `fullName` is null until KYC is filled. Show the member row; `tranches` can go in an expandable detail.
+- **Principal on hold doesn't earn:** principal held for an open principal withdrawal (requested or approved, not yet paid) is excluded, taken off the member's oldest investments first. `earningPrincipal` is what each investment still earns on. A member whose whole principal is on hold is skipped by `ALL` and refused for a `MEMBER` line (`409 ILLEGAL_STATE_TRANSITION`).
+- **`allocations[].largeChange`** marks a change of more than 10% of the member's earning principal. The threshold comes back as `largeChangeThresholdPct` (10), so don't hard-code it. Highlight those rows.
+- **`warnings`** holds batch-level messages only, for example "members' active investments changed since the batch was created".
 - **Approver preview:** `GET /admin/pnl-batches/{id}` for the batch header and `GET /admin/pnl-batches/{id}/preview` for the lines; don't list all batches to find one. The approver must review it; put Approve and Reject on that screen.
 - **Guardrails** (enforced by the server):
   - one REGULAR posting per investment per day
-  - loss floor: a member's value can't go below 0
-  - a batch is refused at approval if active investments changed since creation; reject it and create it again
-- After approval, `/allocations` lists each recipient with name and mobile (header from `GET /admin/pnl-batches/{id}`).
+  - loss floor: a member's total value can't go below 0
+  - a batch is refused at approval if its totals changed since creation (a member joined or left, or a percentage member's principal changed); reject it and create it again. A fixed-amount member topping up doesn't change their amount, only its split.
+- After approval, `/allocations` lists one row per member `{ userId, fullName, mobile, amount, tranches: [{ investmentId, amount }] }`, and the member gets a single `PNL_POSTED` notification with their total.
 - Lists (`GET /admin/pnl-batches?status=&valueType=&assignedToMe=`) are paged, newest first.
 - There is no CSV upload; build the lines in the form.
 ### 6.5 Withdrawals

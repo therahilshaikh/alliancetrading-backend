@@ -18,8 +18,9 @@ CREATE TABLE pnl_batches (
     approved_at          TIMESTAMPTZ,
     version              BIGINT NOT NULL DEFAULT 0,
     assigned_checker_id  UUID REFERENCES admin_users(id),
-    -- Every line applies to each target investment individually:
-    -- FIXED = the same rupee amount each, PERCENTAGE = a percent of each investment's principal
+    -- P&L is decided per member, then split across that member's active investments pro-rata
+    -- by remaining principal: FIXED = the same rupee amount per member,
+    -- PERCENTAGE = a percent of each member's total remaining principal
     value_type           VARCHAR(12) NOT NULL CHECK (value_type IN ('FIXED','PERCENTAGE')),
     CHECK (checker_id IS NULL OR checker_id <> maker_id),
     CHECK (batch_type <> 'ADJUSTMENT' OR original_batch_id IS NOT NULL),
@@ -37,21 +38,23 @@ CREATE INDEX idx_pnl_batches_assigned_pending ON pnl_batches(assigned_checker_id
 CREATE TABLE pnl_lines (
     id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     batch_id      UUID NOT NULL REFERENCES pnl_batches(id),
-    target_type   VARCHAR(12) NOT NULL CHECK (target_type IN ('INVESTMENT','ALL')),
-    investment_id UUID REFERENCES investments(id),
+    -- ALL = every member with an ACTIVE investment, MEMBER = one member (user_id)
+    target_type   VARCHAR(12) NOT NULL CHECK (target_type IN ('MEMBER','ALL')),
+    user_id       UUID REFERENCES users(id),
     -- Line total, computed from the targets at creation (re-checked on approval)
     amount        NUMERIC(15,2) NOT NULL,
-    -- PERCENTAGE batches: percent of each target's principal (1.2500 = 1.25%)
+    -- PERCENTAGE batches: percent of each member's total remaining principal (1.2500 = 1.25%)
     percentage    NUMERIC(7,4) CHECK (percentage IS NULL OR (percentage > -100 AND percentage <= 100 AND percentage <> 0)),
-    -- FIXED batches: rupees each target investment receives
-    amount_per_investment NUMERIC(15,2) CHECK (amount_per_investment IS NULL OR amount_per_investment <> 0),
+    -- FIXED batches: rupees each target member receives, however many investments they hold
+    amount_per_member NUMERIC(15,2) CHECK (amount_per_member IS NULL OR amount_per_member <> 0),
     -- Exactly one way of valuing the line
-    CHECK ((percentage IS NULL) <> (amount_per_investment IS NULL)),
-    CHECK ((target_type = 'INVESTMENT') = (investment_id IS NOT NULL))
+    CHECK ((percentage IS NULL) <> (amount_per_member IS NULL)),
+    CHECK ((target_type = 'MEMBER') = (user_id IS NOT NULL))
 );
 
 CREATE INDEX idx_pnl_lines_batch ON pnl_lines(batch_id);
 
+-- One row per investment: a member's amount split across their investments (sums to the member amount)
 CREATE TABLE pnl_allocations (
     id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     batch_id      UUID NOT NULL REFERENCES pnl_batches(id),
@@ -65,6 +68,7 @@ CREATE TABLE pnl_allocations (
 
 CREATE INDEX idx_pnl_allocations_batch ON pnl_allocations(batch_id);
 CREATE INDEX idx_pnl_allocations_investment ON pnl_allocations(investment_id);
+CREATE INDEX idx_pnl_allocations_user ON pnl_allocations(user_id);
 
 -- An investment receives REGULAR P&L at most once per session_date
 CREATE UNIQUE INDEX idx_pnl_allocations_regular_once_per_day

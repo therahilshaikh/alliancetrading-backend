@@ -25,40 +25,41 @@ public class PnlLine {
     @Column(name = "target_type", nullable = false, length = 12)
     private PnlTargetType targetType;
 
-    @Column(name = "investment_id")
-    private UUID investmentId;
+    /** MEMBER lines only. */
+    @Column(name = "user_id")
+    private UUID userId;
 
     /** The line's total, computed from its targets when the batch was created (re-checked on approval). */
     @Column(nullable = false, precision = 15, scale = 2)
     private BigDecimal amount;
 
-    /** PERCENTAGE batches: percent of each target's principal, e.g. 1.2500 = 1.25%. */
+    /** PERCENTAGE batches: percent of each member's total remaining principal, e.g. 1.2500 = 1.25%. */
     @Column(precision = 7, scale = 4)
     private BigDecimal percentage;
 
-    /** FIXED batches: rupees each target investment receives. */
-    @Column(name = "amount_per_investment", precision = 15, scale = 2)
-    private BigDecimal amountPerInvestment;
+    /** FIXED batches: rupees each target member receives, however many investments they hold. */
+    @Column(name = "amount_per_member", precision = 15, scale = 2)
+    private BigDecimal amountPerMember;
 
     protected PnlLine() {}
 
-    /** Exactly one of {@code percentage} / {@code amountPerInvestment} is set. */
-    public PnlLine(UUID batchId, PnlTargetType targetType, UUID investmentId,
-                   BigDecimal amount, BigDecimal percentage, BigDecimal amountPerInvestment) {
+    /** Exactly one of {@code percentage} / {@code amountPerMember} is set. */
+    public PnlLine(UUID batchId, PnlTargetType targetType, UUID userId,
+                   BigDecimal amount, BigDecimal percentage, BigDecimal amountPerMember) {
         this.id = UUID.randomUUID();
         this.batchId = batchId;
         this.targetType = targetType;
-        this.investmentId = investmentId;
+        this.userId = userId;
         this.amount = amount;
         this.percentage = percentage;
-        this.amountPerInvestment = amountPerInvestment;
+        this.amountPerMember = amountPerMember;
     }
 
     public UUID getId() { return id; }
     public UUID getBatchId() { return batchId; }
     public PnlTargetType getTargetType() { return targetType; }
-    public UUID getInvestmentId() { return investmentId; }
+    public UUID getUserId() { return userId; }
     public BigDecimal getAmount() { return amount; }
     public BigDecimal getPercentage() { return percentage; }
-    public BigDecimal getAmountPerInvestment() { return amountPerInvestment; }
+    public BigDecimal getAmountPerMember() { return amountPerMember; }
 }
