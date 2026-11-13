@@ -48,7 +48,7 @@ public class SecurityConfig {
                 // CORS preflight carries no credentials
                 .requestMatchers(HttpMethod.OPTIONS, "/api/**").permitAll()
                 // Public endpoints
-                .requestMatchers("/swagger-ui.html", "/swagger-ui/**", "/v3/api-docs/**", "/actuator/health", "/error").permitAll()
+                .requestMatchers("/swagger-ui.html", "/swagger-ui/**", "/v3/api-docs/**", "/actuator/health", "/actuator/health/**", "/error").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/v1/app/version").permitAll()
                 .requestMatchers(HttpMethod.POST, "/api/v1/auth/otp/request").permitAll()
                 .requestMatchers(HttpMethod.POST, "/api/v1/auth/otp/verify").permitAll()
